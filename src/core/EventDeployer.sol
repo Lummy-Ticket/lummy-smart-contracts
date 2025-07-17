@@ -16,16 +16,18 @@ contract EventDeployer {
         string ipfsMetadata;
         address idrxToken;
         address platformFeeReceiver;
+        bool useAlgorithm1;
+        uint256 eventId;
     }
     
     function deployEventAndTicket(
         DeployParams calldata params
     ) external returns (address eventAddress, address ticketNFTAddress) {
         // Deploy Event
-        Event newEvent = new Event();
+        Event newEvent = new Event(address(0));
         
         // Deploy TicketNFT
-        TicketNFT newTicketNFT = new TicketNFT();
+        TicketNFT newTicketNFT = new TicketNFT(address(0));
         
         // Initialize contracts
         _initializeContracts(newEvent, newTicketNFT, params);
@@ -50,7 +52,16 @@ contract EventDeployer {
         );
         
         // Initialize TicketNFT
-        newTicketNFT.initialize(params.name, "TIX", address(newEvent));
+        if (params.useAlgorithm1) {
+            newTicketNFT.initializeWithEventId(params.name, "TIX", address(newEvent), params.eventId);
+        } else {
+            newTicketNFT.initialize(params.name, "TIX", address(newEvent));
+        }
+        
+        // Set algorithm mode before setting up NFT
+        if (params.useAlgorithm1) {
+            newEvent.setAlgorithm1(true, params.eventId);
+        }
         
         // Set up Event with TicketNFT
         newEvent.setTicketNFT(

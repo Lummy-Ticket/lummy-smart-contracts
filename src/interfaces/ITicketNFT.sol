@@ -2,7 +2,7 @@
 pragma solidity 0.8.29;
 
 import "src/libraries/Structs.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {IERC721} from "@openzeppelin/token/ERC721/IERC721.sol";
 
 // Updated interface to extend IERC721 instead of duplicating methods
 interface ITicketNFT is IERC721 {
@@ -18,15 +18,20 @@ interface ITicketNFT is IERC721 {
         uint256 originalPrice
     ) external returns (uint256);
     
+    function mintTicket(
+        address to,
+        uint256 tokenId,
+        uint256 tierId,
+        uint256 originalPrice
+    ) external returns (uint256);
+    
     function transferTicket(address to, uint256 tokenId) external;
     
-    function generateQRChallenge(uint256 tokenId) external view returns (bytes32);
+    function generateTicketHash(uint256 tokenId) external view returns (bytes32);
     
     function verifyTicket(
         uint256 tokenId,
-        address owner,
-        uint256 timestamp,
-        bytes memory signature
+        bytes32 ticketHash
     ) external view returns (bool);
     
     function useTicket(uint256 tokenId) external;
@@ -34,6 +39,10 @@ interface ITicketNFT is IERC721 {
     function getTicketMetadata(uint256 tokenId) external view returns (Structs.TicketMetadata memory);
     
     function markTransferred(uint256 tokenId) external;
+    
+    // Algorithm 1 functions
+    function updateStatus(uint256 tokenId, string memory newStatus) external;
+    function getTicketStatus(uint256 tokenId) external view returns (string memory);
     
     // We don't need to redeclare these methods from IERC721:
     // - transferFrom(address from, address to, uint256 tokenId)

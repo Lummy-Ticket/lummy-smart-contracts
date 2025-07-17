@@ -116,7 +116,7 @@ contract EventFactoryTest is Test {
         idrx = new MockIDRX("IDRX Token", "IDRX");
         
         // Deploy factory
-        factory = new EventFactory(address(idrx));
+        factory = new EventFactory(address(idrx), address(0));
         
         // Set platform fee receiver
         factory.setPlatformFeeReceiver(platformFeeReceiver);
@@ -142,7 +142,7 @@ contract EventFactoryTest is Test {
         
         // 2. Deploy Event dan TicketNFT secara manual
         vm.startPrank(organizer);
-        Event newEvent = new Event();
+        Event newEvent = new Event(address(0));
         // Simpan alamat untuk nanti
         address eventAddress = address(newEvent);
         
@@ -157,7 +157,7 @@ contract EventFactoryTest is Test {
         );
         
         // 4. Deploy TicketNFT
-        TicketNFT ticketNFT = new TicketNFT();
+        TicketNFT ticketNFT = new TicketNFT(address(0));
         
         // 5. Inisialisasi TicketNFT
         ticketNFT.initialize("Test Event", "TIX", eventAddress);

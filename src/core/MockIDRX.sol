@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // use for testing purpose
 
-pragma solidity ^0.8.0;
+pragma solidity 0.8.29;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ERC20} from "@openzeppelin/token/ERC20/ERC20.sol";
 
 contract MockIDRX is ERC20 {
     constructor() ERC20("Indonesian Rupiah X", "IDRX") {

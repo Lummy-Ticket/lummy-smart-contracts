@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.29;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/utils/ReentrancyGuard.sol";
+import {Ownable} from "@openzeppelin/access/Ownable.sol";
+import {ERC2771Context} from "@openzeppelin/metatx/ERC2771Context.sol";
+import {Context} from "@openzeppelin/utils/Context.sol";
 import "src/libraries/Structs.sol";
 import "src/libraries/Constants.sol";
 import "src/libraries/TicketLib.sol";
@@ -39,7 +41,7 @@ error SellerPaymentFailed();
 error NotSeller();
 error EventAlreadyCancelled();
 
-contract Event is IEvent, ReentrancyGuard, Ownable {
+contract Event is IEvent, ERC2771Context, ReentrancyGuard, Ownable {
     // Event details
     string public name;
     string public description;
@@ -48,6 +50,12 @@ contract Event is IEvent, ReentrancyGuard, Ownable {
     string public ipfsMetadata;
     address public organizer;
     bool public cancelled;
+    
+    // Algorithm 1 specific
+    uint256 public eventId;
+    bool public useAlgorithm1;
+    mapping(address => bool) public staffWhitelist;
+    mapping(uint256 => bool) public ticketExists;
     
     // Contract references
     address public factory;
@@ -67,7 +75,13 @@ contract Event is IEvent, ReentrancyGuard, Ownable {
     
     // Modifier to restrict access to organizer
     modifier onlyOrganizer() {
-        if(msg.sender != organizer) revert OnlyOrganizerCanCall();
+        if(_msgSender() != organizer) revert OnlyOrganizerCanCall();
+        _;
+    }
+    
+    // Algorithm 1: Staff modifier
+    modifier onlyStaff() {
+        require(staffWhitelist[_msgSender()], "Only staff can call");
         _;
     }
     
@@ -77,7 +91,7 @@ contract Event is IEvent, ReentrancyGuard, Ownable {
         _;
     }
     
-    constructor() Ownable(msg.sender) {
+    constructor(address trustedForwarder) ERC2771Context(trustedForwarder) Ownable(msg.sender) {
         factory = msg.sender;
     }
     
@@ -98,6 +112,9 @@ contract Event is IEvent, ReentrancyGuard, Ownable {
         date = _date;
         venue = _venue;
         ipfsMetadata = _ipfsMetadata;
+        
+        // Add organizer as initial staff for Algorithm 1
+        staffWhitelist[_organizer] = true;
         
         // Setup default resale rules
         resaleRules = Structs.ResaleRules({
@@ -183,28 +200,41 @@ contract Event is IEvent, ReentrancyGuard, Ownable {
         // Calculate total price
         uint256 totalPrice = tier.price * _quantity;
         
-        // Transfer IDRX token from buyer to event contract
-        if(!idrxToken.transferFrom(msg.sender, address(this), totalPrice)) revert TokenTransferFailed();
-        
-        // Calculate platform fee
-        uint256 platformFee = (totalPrice * Constants.PLATFORM_FEE_PERCENTAGE) / Constants.BASIS_POINTS;
-        
-        // Transfer platform fee
-        if(!idrxToken.transfer(platformFeeReceiver, platformFee)) revert PlatformFeeTransferFailed();
-        
-        // Transfer organizer share
-        uint256 organizerShare = totalPrice - platformFee;
-        if(!idrxToken.transfer(organizer, organizerShare)) revert OrganizerPaymentFailed();
-        
-        // Mint NFT tickets
-        for (uint256 i = 0; i < _quantity; i++) {
-            ticketNFT.mintTicket(msg.sender, _tierId, tier.price);
+        if (useAlgorithm1) {
+            // Algorithm 1: Direct payment to organizer
+            if(!idrxToken.transferFrom(_msgSender(), organizer, totalPrice)) revert TokenTransferFailed();
+            
+            // Mint NFT tickets with Algorithm 1 token ID format
+            for (uint256 i = 0; i < _quantity; i++) {
+                uint256 tokenId = generateTokenId(eventId, _tierId, tier.sold + i + 1);
+                ticketNFT.mintTicket(_msgSender(), tokenId, _tierId, tier.price);
+                ticketExists[tokenId] = true;
+            }
+        } else {
+            // Original algorithm
+            // Transfer IDRX token from buyer to event contract
+            if(!idrxToken.transferFrom(_msgSender(), address(this), totalPrice)) revert TokenTransferFailed();
+            
+            // Calculate platform fee
+            uint256 platformFee = (totalPrice * Constants.PLATFORM_FEE_PERCENTAGE) / Constants.BASIS_POINTS;
+            
+            // Transfer platform fee
+            if(!idrxToken.transfer(platformFeeReceiver, platformFee)) revert PlatformFeeTransferFailed();
+            
+            // Transfer organizer share
+            uint256 organizerShare = totalPrice - platformFee;
+            if(!idrxToken.transfer(organizer, organizerShare)) revert OrganizerPaymentFailed();
+            
+            // Mint NFT tickets
+            for (uint256 i = 0; i < _quantity; i++) {
+                ticketNFT.mintTicket(_msgSender(), _tierId, tier.price);
+            }
         }
         
         // Update sold count
         tier.sold += _quantity;
         
-        emit TicketPurchased(msg.sender, _tierId, _quantity);
+        emit TicketPurchased(_msgSender(), _tierId, _quantity);
     }
     
     // Set resale rules
@@ -310,6 +340,58 @@ contract Event is IEvent, ReentrancyGuard, Ownable {
         emit ResaleListingCancelled(_tokenId, msg.sender);
     }
     
+    // Algorithm 1: Staff management
+    function addStaff(address staff) external onlyOrganizer {
+        require(staff != address(0), "Invalid staff address");
+        staffWhitelist[staff] = true;
+        emit StaffAdded(staff, _msgSender());
+    }
+    
+    function removeStaff(address staff) external onlyOrganizer {
+        require(staff != organizer, "Cannot remove organizer");
+        staffWhitelist[staff] = false;
+        emit StaffRemoved(staff, _msgSender());
+    }
+    
+    // Algorithm 1: Update ticket status
+    function updateTicketStatus(uint256 tokenId) external onlyStaff nonReentrant {
+        require(useAlgorithm1, "Only for Algorithm 1");
+        require(ticketExists[tokenId], "Ticket does not exist");
+        
+        string memory currentStatus = ticketNFT.getTicketStatus(tokenId);
+        require(keccak256(bytes(currentStatus)) == keccak256(bytes("valid")), "Ticket not valid");
+        
+        // Update status from "valid" to "used"
+        ticketNFT.updateStatus(tokenId, "used");
+        
+        emit TicketStatusUpdated(tokenId, "valid", "used");
+    }
+    
+    // Generate Algorithm 1 token ID
+    function generateTokenId(
+        uint256 _eventId,
+        uint256 tierCode,
+        uint256 sequential
+    ) internal pure returns (uint256) {
+        require(_eventId <= 999, "Event ID too large");
+        require(tierCode <= 9, "Tier code too large");
+        require(sequential <= 99999, "Sequential number too large");
+        
+        // Convert tier 0 to tier 1 for token ID format
+        uint256 actualTierCode = tierCode + 1;
+        
+        return (1 * 1e9) + (_eventId * 1e6) + (actualTierCode * 1e5) + sequential;
+    }
+    
+    // Set algorithm mode
+    function setAlgorithm1(bool _useAlgorithm1, uint256 _eventId) external {
+        require(msg.sender == factory, "Only factory can set algorithm");
+        useAlgorithm1 = _useAlgorithm1;
+        if (_useAlgorithm1) {
+            eventId = _eventId;
+        }
+    }
+    
     // Cancel event - refunds would be handled by organizer
     function cancelEvent() external override onlyOrganizer {
         if(cancelled) revert EventAlreadyCancelled();
@@ -318,9 +400,40 @@ contract Event is IEvent, ReentrancyGuard, Ownable {
         emit EventCancelled();
     }
     
+    // Algorithm 1: Process refund
+    function processRefund(address to, uint256 amount) external {
+        require(msg.sender == address(ticketNFT), "Only NFT contract can process refund");
+        require(cancelled, "Event not cancelled");
+        
+        // In Algorithm 1, organizer must approve refund from their account
+        // Transfer IDRX tokens back to user from organizer
+        bool success = idrxToken.transferFrom(organizer, to, amount);
+        require(success, "Token transfer failed");
+        
+        emit RefundProcessed(to, amount);
+    }
+    
     // Get ticket NFT contract address
     function getTicketNFT() external view override returns (address) {
         return address(ticketNFT);
+    }
+    
+    // Override _msgSender for ERC2771Context
+    function _msgSender() internal view override(Context, ERC2771Context) returns (address) {
+        return ERC2771Context._msgSender();
+    }
+    
+    function _msgData() internal view override(Context, ERC2771Context) returns (bytes calldata) {
+        return ERC2771Context._msgData();
+    }
+    
+    function _contextSuffixLength() internal view virtual override(Context, ERC2771Context) returns (uint256) {
+        return ERC2771Context._contextSuffixLength();
+    }
+    
+    // View functions
+    function isStaff(address account) external view returns (bool) {
+        return staffWhitelist[account];
     }
     
     // Events
@@ -332,4 +445,10 @@ contract Event is IEvent, ReentrancyGuard, Ownable {
     event TicketResold(uint256 indexed tokenId, address indexed seller, address indexed buyer, uint256 price);
     event ResaleListingCancelled(uint256 indexed tokenId, address indexed seller);
     event EventCancelled();
+    
+    // Algorithm 1 events
+    event StaffAdded(address indexed staff, address indexed organizer);
+    event StaffRemoved(address indexed staff, address indexed organizer);
+    event TicketStatusUpdated(uint256 indexed tokenId, string oldStatus, string newStatus);
+    event RefundProcessed(address indexed to, uint256 amount);
 }

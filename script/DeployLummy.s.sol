@@ -14,7 +14,7 @@ contract DeployLummyContract is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // Deploy EventFactory with IDRX address
-        EventFactory factory = new EventFactory(idrxAddress);
+        EventFactory factory = new EventFactory(idrxAddress, address(0));
         
         // Set platform fee receiver - can be changed later
         factory.setPlatformFeeReceiver(vm.addr(deployerPrivateKey));

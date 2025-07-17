@@ -142,7 +142,7 @@ contract EventTest is Test {
         
         vm.startPrank(organizer);
         
-        eventContract = new Event();
+        eventContract = new Event(address(0));
         
         eventContract.initialize(
             organizer,
@@ -153,7 +153,7 @@ contract EventTest is Test {
             eventIpfsMetadata
         );
         
-        TicketNFT ticketNFTContract = new TicketNFT();
+        TicketNFT ticketNFTContract = new TicketNFT(address(0));
         
         ticketNFTContract.initialize(eventName, "TIX", address(eventContract));
         

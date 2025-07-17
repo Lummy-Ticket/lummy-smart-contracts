@@ -23,13 +23,10 @@ contract TicketNFTTest is Test {
     string public eventName = "Konser Musik";
     uint256 public eventDate;
     
-    // Private key untuk testing signature
-    uint256 private _attendee1PrivateKey;
     
     // Custom error signatures for matching in tests
     bytes4 private constant _TICKET_ALREADY_USED_ERROR_SELECTOR = bytes4(keccak256("TicketAlreadyUsed()"));
     bytes4 private constant _ONLY_EVENT_CONTRACT_CAN_CALL_ERROR_SELECTOR = bytes4(keccak256("OnlyEventContractCanCall()"));
-    bytes4 private constant _INVALID_TIMESTAMP_ERROR_SELECTOR = bytes4(keccak256("InvalidTimestamp()"));
     
     function setUp() public {
         console.log("Setting up TicketNFT test environment");
@@ -38,10 +35,7 @@ contract TicketNFTTest is Test {
         deployer = makeAddr("deployer");
         organizer = makeAddr("organizer");
         
-        // Generate private key untuk attendee1 (untuk testing signature)
-        _attendee1PrivateKey = 0xA11CE; // Private key tetap (untuk konsistensi debugging)
-        attendee1 = vm.addr(_attendee1PrivateKey);
-        console.log("Attendee1 address:", attendee1);
+        attendee1 = makeAddr("attendee1");
         
         attendee2 = makeAddr("attendee2");
         
@@ -52,7 +46,7 @@ contract TicketNFTTest is Test {
         vm.startPrank(organizer);
         
         // Deploy Event contract
-        eventContract = new Event();
+        eventContract = new Event(address(0));
         
         // Initialize Event
         eventContract.initialize(
@@ -67,7 +61,7 @@ contract TicketNFTTest is Test {
         eventAddress = address(eventContract);
         
         // Deploy TicketNFT
-        ticketNFT = new TicketNFT();
+        ticketNFT = new TicketNFT(address(0));
         
         // Initialize TicketNFT
         ticketNFT.initialize(eventName, "TIX", eventAddress);
@@ -142,25 +136,22 @@ contract TicketNFTTest is Test {
         assertEq(ticketNFT.transferCount(tokenId), 1);
     }
     
-    // Test generate QR challenge
-    function testGenerateQRChallenge() public {
+    // Test generate ticket hash
+    function testGenerateTicketHash() public {
         // Mint tiket terlebih dahulu
         uint256 tokenId = _mintTicket(attendee1, 1, 100 * 10**2);
         
-        // Generate QR challenge
-        bytes32 challenge = ticketNFT.generateQRChallenge(tokenId);
+        // Generate ticket hash
+        bytes32 ticketHash = ticketNFT.generateTicketHash(tokenId);
         
-        // Verifikasi challenge bukan bytes32(0)
-        assertTrue(challenge != bytes32(0));
+        // Verifikasi hash bukan bytes32(0)
+        assertTrue(ticketHash != bytes32(0));
         
-        // Generate QR challenge lagi setelah beberapa waktu
-        vm.warp(block.timestamp + Constants.VALIDITY_WINDOW + 1);
+        // Generate hash lagi untuk token yang sama
+        bytes32 secondHash = ticketNFT.generateTicketHash(tokenId);
         
-        // Generate QR challenge baru
-        bytes32 newChallenge = ticketNFT.generateQRChallenge(tokenId);
-        
-        // Verifikasi challenge berubah
-        assertTrue(challenge != newChallenge);
+        // Verifikasi hash konsisten untuk token yang sama
+        assertEq(ticketHash, secondHash);
     }
     
     // Test verifikasi tiket
@@ -168,45 +159,21 @@ contract TicketNFTTest is Test {
         // Mint tiket terlebih dahulu
         uint256 tokenId = _mintTicket(attendee1, 1, 100 * 10**2);
         
-        // Trace debug untuk memeriksa nilai
-        console.log("TokenId:", tokenId);
-        console.log("Owner:", ticketNFT.ownerOf(tokenId));
-        console.log("Expected signer:", attendee1);
+        // Generate ticket hash
+        bytes32 ticketHash = ticketNFT.generateTicketHash(tokenId);
         
-        // Generate QR challenge untuk debug
-        bytes32 challenge = ticketNFT.generateQRChallenge(tokenId);
-        console.log("Challenge:", vm.toString(challenge));
-        
-        // Buat message hash sesuai dengan implementasi di SecurityLib
-        bytes32 messageHash = keccak256(
-            abi.encodePacked("\x19Ethereum Signed Message:\n32", challenge)
-        );
-        console.log("Message hash:", vm.toString(messageHash));
-        
-        // Attendee1 signs challenge dengan private key
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_attendee1PrivateKey, messageHash);
-        bytes memory signature = abi.encodePacked(r, s, v);
-        
-        console.log("Signature length:", signature.length);
-        console.log("v:", v);
-        
-        // Gunakan timestamp saat ini untuk challenge
-        uint256 currentTime = block.timestamp;
-        
-        // Verifikasi tiket - gunakan implementasi manual untuk debug
-        address signer = ecrecover(messageHash, v, r, s);
-        console.log("Recovered signer:", signer);
-        
-        // Verifikasi tiket 
-        bool isValid = ticketNFT.verifyTicket(
-            tokenId,
-            attendee1,
-            currentTime,
-            signature
-        );
+        // Verifikasi tiket dengan hash yang benar
+        bool isValid = ticketNFT.verifyTicket(tokenId, ticketHash);
         
         // Harusnya valid
         assertTrue(isValid);
+        
+        // Test dengan hash yang salah
+        bytes32 wrongHash = keccak256("wrong hash");
+        bool isInvalid = ticketNFT.verifyTicket(tokenId, wrongHash);
+        
+        // Harusnya tidak valid
+        assertFalse(isInvalid);
     }
     
     // Test penggunaan tiket
@@ -224,32 +191,22 @@ contract TicketNFTTest is Test {
         assertTrue(used);
     }
     
-    // Test verifikasi tiket gagal karena timestamp tidak valid
-    function testRevertIfVerifyTicketInvalidTimestamp() public {
+    // Test verifikasi tiket gagal untuk tiket yang sudah digunakan
+    function testRevertIfVerifyUsedTicket() public {
         // Mint tiket terlebih dahulu
         uint256 tokenId = _mintTicket(attendee1, 1, 100 * 10**2);
         
-        // Buat message hash sesuai dengan implementasi di SecurityLib
-        bytes32 challenge = ticketNFT.generateQRChallenge(tokenId);
-        bytes32 messageHash = keccak256(
-            abi.encodePacked("\x19Ethereum Signed Message:\n32", challenge)
-        );
+        // Generate ticket hash sebelum tiket digunakan
+        bytes32 ticketHash = ticketNFT.generateTicketHash(tokenId);
         
-        // Attendee1 signs challenge
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_attendee1PrivateKey, messageHash);
-        bytes memory signature = abi.encodePacked(r, s, v);
+        // Gunakan tiket
+        vm.startPrank(eventAddress);
+        ticketNFT.useTicket(tokenId);
+        vm.stopPrank();
         
-        // Warp ke waktu yang jauh melewati validity window
-        vm.warp(block.timestamp + Constants.VALIDITY_WINDOW * 3);
-        
-        // Ekspektasi revert
-        vm.expectRevert(_INVALID_TIMESTAMP_ERROR_SELECTOR);
-        ticketNFT.verifyTicket(
-            tokenId,
-            attendee1,
-            block.timestamp - Constants.VALIDITY_WINDOW * 3,
-            signature
-        );
+        // Ekspektasi revert karena tiket sudah digunakan
+        vm.expectRevert(_TICKET_ALREADY_USED_ERROR_SELECTOR);
+        ticketNFT.verifyTicket(tokenId, ticketHash);
     }
     
     // Test penggunaan tiket hanya oleh event contract

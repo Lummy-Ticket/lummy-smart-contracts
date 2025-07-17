@@ -140,7 +140,7 @@ contract FeeDistributionTest is Test {
         idrx = new MockIDRX("IDRX Token", "IDRX");
         
         // Deploy EventFactory
-        factory = new EventFactory(address(idrx));
+        factory = new EventFactory(address(idrx), address(0));
         
         // Set platform fee receiver
         factory.setPlatformFeeReceiver(platformFeeReceiver);
@@ -155,7 +155,7 @@ contract FeeDistributionTest is Test {
         vm.startPrank(organizer);
         
         // 1. Deploy Event contract
-        eventContract = new Event();
+        eventContract = new Event(address(0));
         
         // 2. Initialize Event
         eventContract.initialize(
@@ -168,7 +168,7 @@ contract FeeDistributionTest is Test {
         );
         
         // 3. Deploy TicketNFT
-        TicketNFT ticketNFTContract = new TicketNFT();
+        TicketNFT ticketNFTContract = new TicketNFT(address(0));
         
         // 4. Initialize TicketNFT
         ticketNFTContract.initialize("Concert Event", "TIX", address(eventContract));
@@ -323,9 +323,8 @@ contract FeeDistributionTest is Test {
     
     // Test perubahan platform fee receiver
     function testPlatformFeeReceiver() public {
-        // Setup - Ambil platform fee receiver saat ini
-        address currentPlatformFeeReceiver = platformFeeReceiver;
-        console.log("Current platformFeeReceiver:", currentPlatformFeeReceiver);
+        // Setup - Test current platform fee receiver
+        console.log("Current platformFeeReceiver:", platformFeeReceiver);
         
         // Beli tiket untuk menghasilkan fee
         vm.startPrank(buyer);
@@ -334,64 +333,48 @@ contract FeeDistributionTest is Test {
         vm.stopPrank();
         
         // Verifikasi platform fee diterima dengan benar
-        uint256 initialPlatformFeeAmount = idrx.balanceOf(currentPlatformFeeReceiver);
-        assertTrue(initialPlatformFeeAmount > 0, "Platform fee tidak diterima");
+        uint256 initialAmount = idrx.balanceOf(platformFeeReceiver);
+        assertTrue(initialAmount > 0, "Platform fee tidak diterima");
         
-        // Perhatikan: Kita tidak dapat mengubah alamat platform fee receiver pada Event
-        // yang sudah diinisialisasi karena ada pemeriksaan "TicketNFT already set"
-        // Sebagai gantinya, kita buat Event baru untuk menguji fungsi ini
+        // Create new factory with different fee receiver
+        address newReceiver = makeAddr("newFeeReceiver");
+        console.log("New platformFeeReceiver:", newReceiver);
         
-        // Buat Event baru dan setup dengan platform fee receiver yang berbeda
-        vm.startPrank(organizer);
-        Event newEvent = new Event();
-        newEvent.initialize(
-            organizer,
-            "New Event",
-            "Another concert",
-            eventDate,
-            "Different Venue",
-            "ipfs://new-metadata"
-        );
-        
-        // Buat TicketNFT baru
-        TicketNFT newTicketNFT = new TicketNFT();
-        newTicketNFT.initialize("New Event", "NTIX", address(newEvent));
-        
-        // Buat alamat penerima fee baru yang berbeda
-        address newFeeReceiver = makeAddr("newFeeReceiver");
-        console.log("New platformFeeReceiver:", newFeeReceiver);
-        
-        // Set TicketNFT dengan penerima fee yang berbeda
-        newEvent.setTicketNFT(address(newTicketNFT), address(idrx), newFeeReceiver);
-        
-        // Tambahkan tier tiket
-        newEvent.addTicketTier(
-            "Regular",
-            TICKET_PRICE,
-            100,
-            4
-        );
+        vm.startPrank(makeAddr("newFactoryOwner"));
+        EventFactory newFactory = new EventFactory(address(idrx), address(0));
+        newFactory.setPlatformFeeReceiver(newReceiver);
         vm.stopPrank();
         
-        // Beli tiket dari event baru
+        // Create new event with different fee receiver
+        vm.startPrank(organizer);
+        address newEventAddr = newFactory.createEvent(
+            "New Event",
+            "Another concert",
+            eventDate + 1 days,
+            "Different Venue",
+            "ipfs://new-metadata",
+            false
+        );
+        
+        Event newEvent = Event(newEventAddr);
+        newEvent.addTicketTier("Regular", TICKET_PRICE, 100, 4);
+        vm.stopPrank();
+        
+        // Purchase ticket from new event
         vm.startPrank(buyer);
-        idrx.approve(address(newEvent), TICKET_PRICE);
+        idrx.approve(newEventAddr, TICKET_PRICE);
         newEvent.purchaseTicket(0, 1);
         vm.stopPrank();
         
-        // Verifikasi fee diterima oleh penerima baru
-        uint256 newReceiverFeeAmount = idrx.balanceOf(newFeeReceiver);
-        console.log("Fee amount to new receiver:", newReceiverFeeAmount);
-        
-        // Hitung expected fee
+        // Verify fee received by new receiver
+        uint256 newAmount = idrx.balanceOf(newReceiver);
         uint256 expectedFee = (TICKET_PRICE * PLATFORM_FEE_PERCENTAGE) / Constants.BASIS_POINTS;
         
-        assertTrue(newReceiverFeeAmount > 0, "Fee tidak diterima oleh penerima baru");
-        assertEq(newReceiverFeeAmount, expectedFee, "Fee tidak sesuai dengan yang diharapkan");
+        assertTrue(newAmount > 0, "Fee tidak diterima oleh penerima baru");
+        assertEq(newAmount, expectedFee, "Fee tidak sesuai dengan yang diharapkan");
         
-        // Verifikasi penerima lama tidak menerima fee dari event baru
-        uint256 currentReceiverFinalAmount = idrx.balanceOf(currentPlatformFeeReceiver);
-        assertEq(currentReceiverFinalAmount, initialPlatformFeeAmount, "Penerima lama menerima fee dari event baru");
+        // Verify old receiver didn't receive fee from new event
+        assertEq(idrx.balanceOf(platformFeeReceiver), initialAmount, "Penerima lama menerima fee dari event baru");
     }
     
     // Test platform fee percentage
