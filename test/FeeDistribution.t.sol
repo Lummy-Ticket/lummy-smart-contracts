@@ -204,21 +204,36 @@ contract FeeDistributionTest is Test {
     
     // Test distribusi fee untuk pembelian tiket primary
     function testPrimaryPurchaseFeeDistribution() public {
+        console.log("=== STEP 1: Primary Purchase Fee Distribution Test ===");
+        
         // Catat saldo awal
         uint256 initialOrganizerBalance = idrx.balanceOf(organizer);
         uint256 initialPlatformBalance = idrx.balanceOf(platformFeeReceiver);
         uint256 initialBuyerBalance = idrx.balanceOf(buyer);
         
         // Log saldo awal untuk debugging
-        console.log("Initial balances:");
-        console.log("  Organizer:", initialOrganizerBalance);
-        console.log("  Platform:", initialPlatformBalance);
-        console.log("  Buyer:", initialBuyerBalance);
+        console.log("\n--- Initial Account Balances ---");
+        console.log("Organizer address:", organizer);
+        console.log("Platform receiver address:", platformFeeReceiver);
+        console.log("Buyer address:", buyer);
+        console.log("  Organizer balance:", initialOrganizerBalance);
+        console.log("  Platform balance:", initialPlatformBalance);
+        console.log("  Buyer balance:", initialBuyerBalance);
+        
+        // Log purchase details
+        console.log("\n--- Purchase Details ---");
+        console.log("Ticket price:", TICKET_PRICE);
+        console.log("Quantity: 2");
+        console.log("Total amount:", TICKET_PRICE * 2);
+        console.log("Platform fee percentage (basis points):", PLATFORM_FEE_PERCENTAGE);
         
         // Beli 2 tiket sebagai buyer
+        console.log("\n--- Executing Purchase ---");
         vm.startPrank(buyer);
         idrx.approve(eventAddress, TICKET_PRICE * 2);
+        console.log("Approved amount:", TICKET_PRICE * 2);
         eventContract.purchaseTicket(0, 2);
+        console.log("Purchase transaction completed");
         vm.stopPrank();
         
         // Hitung fee yang diharapkan
@@ -227,9 +242,11 @@ contract FeeDistributionTest is Test {
         uint256 expectedOrganizerShare = totalPurchaseAmount - expectedPlatformFee;
         
         // Log pembayaran yang diharapkan
-        console.log("Expected distribution for purchase amount:", totalPurchaseAmount);
-        console.log("  Platform fee:", expectedPlatformFee);
-        console.log("  Organizer share:", expectedOrganizerShare);
+        console.log("\n--- Expected Fee Distribution ---");
+        console.log("Total purchase amount:", totalPurchaseAmount);
+        console.log("Expected platform fee:", expectedPlatformFee);
+        console.log("Expected organizer share:", expectedOrganizerShare);
+        console.log("Fee calculation: (amount * percentage) / basis_points");
         
         // Verifikasi distribusi fee
         uint256 actualPlatformFee = idrx.balanceOf(platformFeeReceiver) - initialPlatformBalance;
@@ -237,15 +254,24 @@ contract FeeDistributionTest is Test {
         uint256 buyerSpent = initialBuyerBalance - idrx.balanceOf(buyer);
         
         // Log distribusi aktual
-        console.log("Actual distribution:");
-        console.log("  Platform received:", actualPlatformFee);
-        console.log("  Organizer received:", actualOrganizerShare);
-        console.log("  Buyer spent:", buyerSpent);
+        console.log("\n--- Actual Fee Distribution ---");
+        console.log("Platform received:", actualPlatformFee);
+        console.log("Organizer received:", actualOrganizerShare);
+        console.log("Buyer spent:", buyerSpent);
+        
+        // Log final balances
+        console.log("\n--- Final Account Balances ---");
+        console.log("  Organizer balance:", idrx.balanceOf(organizer));
+        console.log("  Platform balance:", idrx.balanceOf(platformFeeReceiver));
+        console.log("  Buyer balance:", idrx.balanceOf(buyer));
         
         // Assertions
         assertEq(actualPlatformFee, expectedPlatformFee, "Platform fee tidak sesuai harapan");
         assertEq(actualOrganizerShare, expectedOrganizerShare, "Organizer fee tidak sesuai harapan");
         assertEq(buyerSpent, totalPurchaseAmount, "Pembeli membayar jumlah yang tidak sesuai");
+        
+        console.log("\n[OK] All fee distributions match expected amounts");
+        console.log("=== Primary Purchase Fee Distribution Test PASSED! ===");
     }
     
     // Helper untuk membeli dan list tiket resale
@@ -268,8 +294,16 @@ contract FeeDistributionTest is Test {
     
     // Test distribusi fee untuk pembelian tiket secondary (resale)
     function testResaleFeeDistribution() public {
+        console.log("=== STEP 2: Resale Fee Distribution Test ===");
+        
         // Setup tiket resale
+        console.log("\n--- Setting Up Resale Ticket ---");
         uint256 tokenId = _buyAndListTicket();
+        console.log("Resale ticket setup completed");
+        console.log("Token ID listed for resale:", tokenId);
+        console.log("Resale price:", RESALE_PRICE);
+        console.log("Original price:", TICKET_PRICE);
+        console.log("Markup percentage (basis points):", ((RESALE_PRICE - TICKET_PRICE) * 10000) / TICKET_PRICE);
         
         // Catat saldo awal sebelum pembelian resale
         uint256 initialOrganizerBalance = idrx.balanceOf(organizer);
@@ -278,16 +312,29 @@ contract FeeDistributionTest is Test {
         uint256 initialBuyerBalance = idrx.balanceOf(buyer);
         
         // Log saldo awal untuk debugging
-        console.log("Initial balances for resale:");
-        console.log("  Organizer:", initialOrganizerBalance);
-        console.log("  Platform:", initialPlatformBalance);
-        console.log("  Reseller:", initialResellerBalance);
-        console.log("  Buyer:", initialBuyerBalance);
+        console.log("\n--- Initial Balances Before Resale ---");
+        console.log("Organizer address:", organizer);
+        console.log("Platform receiver address:", platformFeeReceiver);
+        console.log("Reseller address:", reseller);
+        console.log("Buyer address:", buyer);
+        console.log("  Organizer balance:", initialOrganizerBalance);
+        console.log("  Platform balance:", initialPlatformBalance);
+        console.log("  Reseller balance:", initialResellerBalance);
+        console.log("  Buyer balance:", initialBuyerBalance);
+        
+        // Log fee structure
+        console.log("\n--- Resale Fee Structure ---");
+        console.log("Platform fee percentage (basis points):", PLATFORM_FEE_PERCENTAGE);
+        console.log("Organizer fee percentage (basis points):", ORGANIZER_FEE_PERCENTAGE);
+        console.log("Total fee percentage (basis points):", PLATFORM_FEE_PERCENTAGE + ORGANIZER_FEE_PERCENTAGE);
         
         // Beli tiket resale sebagai buyer
+        console.log("\n--- Executing Resale Purchase ---");
         vm.startPrank(buyer);
         idrx.approve(eventAddress, RESALE_PRICE);
+        console.log("Buyer approved amount:", RESALE_PRICE);
         eventContract.purchaseResaleTicket(tokenId);
+        console.log("Resale purchase transaction completed");
         vm.stopPrank();
         
         // Hitung fee yang diharapkan untuk resale
@@ -296,10 +343,13 @@ contract FeeDistributionTest is Test {
         uint256 sellerAmount = RESALE_PRICE - platformFee - organizerFee;
         
         // Log pembayaran yang diharapkan
-        console.log("Expected distribution for resale amount:", RESALE_PRICE);
-        console.log("  Platform fee:", platformFee);
-        console.log("  Organizer fee:", organizerFee);
-        console.log("  Seller amount:", sellerAmount);
+        console.log("\n--- Expected Resale Fee Distribution ---");
+        console.log("Total resale amount:", RESALE_PRICE);
+        console.log("Expected platform fee:", platformFee);
+        console.log("Expected organizer fee:", organizerFee);
+        console.log("Expected seller amount:", sellerAmount);
+        console.log("Platform fee calculation: (resale_price * platform_percentage) / basis_points");
+        console.log("Organizer fee calculation: (resale_price * organizer_percentage) / basis_points");
         
         // Verifikasi distribusi fee
         uint256 actualPlatformFee = idrx.balanceOf(platformFeeReceiver) - initialPlatformBalance;
@@ -308,17 +358,32 @@ contract FeeDistributionTest is Test {
         uint256 buyerSpent = initialBuyerBalance - idrx.balanceOf(buyer);
         
         // Log distribusi aktual
-        console.log("Actual distribution for resale:");
-        console.log("  Platform received:", actualPlatformFee);
-        console.log("  Organizer received:", actualOrganizerFee);
-        console.log("  Seller received:", actualSellerAmount);
-        console.log("  Buyer spent:", buyerSpent);
+        console.log("\n--- Actual Resale Fee Distribution ---");
+        console.log("Platform received:", actualPlatformFee);
+        console.log("Organizer received:", actualOrganizerFee);
+        console.log("Seller received:", actualSellerAmount);
+        console.log("Buyer spent:", buyerSpent);
+        
+        // Log final balances
+        console.log("\n--- Final Account Balances ---");
+        console.log("  Organizer balance:", idrx.balanceOf(organizer));
+        console.log("  Platform balance:", idrx.balanceOf(platformFeeReceiver));
+        console.log("  Reseller balance:", idrx.balanceOf(reseller));
+        console.log("  Buyer balance:", idrx.balanceOf(buyer));
+        
+        // Verify token ownership transfer
+        console.log("\n--- Token Ownership Transfer ---");
+        console.log("New token owner:", ticketNFT.ownerOf(tokenId));
+        console.log("Expected owner (buyer):", buyer);
         
         // Assertions
         assertEq(actualPlatformFee, platformFee, "Platform fee tidak sesuai harapan");
         assertEq(actualOrganizerFee, organizerFee, "Organizer fee tidak sesuai harapan");
         assertEq(actualSellerAmount, sellerAmount, "Seller amount tidak sesuai harapan");
         assertEq(buyerSpent, RESALE_PRICE, "Pembeli membayar jumlah yang tidak sesuai");
+        
+        console.log("\n[OK] All resale fee distributions match expected amounts");
+        console.log("=== Resale Fee Distribution Test PASSED! ===");
     }
     
     // Test perubahan platform fee receiver

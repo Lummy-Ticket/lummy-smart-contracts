@@ -244,6 +244,9 @@ contract EventTest is Test {
     }
     
     function testPurchaseTicket() public {
+        console.log("=== Event Purchase Ticket Test ===");
+        
+        console.log("\n--- Setup Ticket Tier ---");
         vm.startPrank(organizer);
         eventContract.addTicketTier(
             "Regular",
@@ -252,29 +255,74 @@ contract EventTest is Test {
             4 // max 4 tiket per pembelian
         );
         vm.stopPrank();
+        console.log("Ticket tier added: Regular, 100 IDRX, 100 tickets, max 4 per purchase");
         
         uint256 initialOrganizerBalance = idrx.balanceOf(organizer);
         uint256 initialPlatformBalance = idrx.balanceOf(deployer);
         
-        vm.startPrank(buyer1);
-        idrx.approve(eventAddress, 500 * 10**2); // approve 500 IDRX
+        console.log("\n--- Initial State ---");
+        console.log("Buyer1 address:", buyer1);
+        console.log("Organizer address:", organizer);
+        console.log("Platform (deployer) address:", deployer);
+        console.log("Initial organizer balance:", initialOrganizerBalance);
+        console.log("Initial platform balance:", initialPlatformBalance);
+        console.log("Buyer1 initial balance:", idrx.balanceOf(buyer1));
         
         uint256 quantity = 2;
-        eventContract.purchaseTicket(0, quantity);
-        vm.stopPrank();
-        
-        (,, , uint256 sold,,) = eventContract.ticketTiers(0);
-        assertEq(sold, quantity);
-        
-        assertEq(ticketNFT.balanceOf(buyer1), quantity);
-        
         uint256 ticketPrice = 100 * 10**2; // 100 IDRX
         uint256 totalPrice = ticketPrice * quantity;
+        
+        console.log("\n--- Purchase Details ---");
+        console.log("Quantity to purchase:", quantity);
+        console.log("Ticket price:", ticketPrice);
+        console.log("Total price:", totalPrice);
+        console.log("Platform fee percentage (basis points):", Constants.PLATFORM_FEE_PERCENTAGE);
+        
+        console.log("\n--- Executing Purchase ---");
+        vm.startPrank(buyer1);
+        idrx.approve(eventAddress, 500 * 10**2); // approve 500 IDRX
+        console.log("Approved amount: 50000");
+        eventContract.purchaseTicket(0, quantity);
+        console.log("Purchase transaction completed");
+        vm.stopPrank();
+        
+        console.log("\n--- Post-Purchase Verification ---");
+        (,, , uint256 sold,,) = eventContract.ticketTiers(0);
+        console.log("Tickets sold:", sold);
+        console.log("Expected sold:", quantity);
+        assertEq(sold, quantity);
+        console.log("[OK] Tier sold count updated correctly");
+        
+        uint256 nftBalance = ticketNFT.balanceOf(buyer1);
+        console.log("Buyer1 NFT balance:", nftBalance);
+        console.log("Expected NFT balance:", quantity);
+        assertEq(nftBalance, quantity);
+        console.log("[OK] NFTs minted correctly");
+        
         uint256 platformFee = (totalPrice * Constants.PLATFORM_FEE_PERCENTAGE) / Constants.BASIS_POINTS;
         uint256 organizerPayment = totalPrice - platformFee;
         
-        assertEq(idrx.balanceOf(deployer) - initialPlatformBalance, platformFee);
-        assertEq(idrx.balanceOf(organizer) - initialOrganizerBalance, organizerPayment);
+        console.log("\n--- Payment Distribution ---");
+        console.log("Platform fee:", platformFee);
+        console.log("Organizer payment:", organizerPayment);
+        console.log("Total:", platformFee + organizerPayment);
+        
+        uint256 actualPlatformFee = idrx.balanceOf(deployer) - initialPlatformBalance;
+        uint256 actualOrganizerPayment = idrx.balanceOf(organizer) - initialOrganizerBalance;
+        
+        console.log("Actual platform fee received:", actualPlatformFee);
+        console.log("Actual organizer payment:", actualOrganizerPayment);
+        
+        assertEq(actualPlatformFee, platformFee);
+        assertEq(actualOrganizerPayment, organizerPayment);
+        console.log("[OK] Payment distribution correct");
+        
+        console.log("\n--- Final Balances ---");
+        console.log("Organizer final balance:", idrx.balanceOf(organizer));
+        console.log("Platform final balance:", idrx.balanceOf(deployer));
+        console.log("Buyer1 final balance:", idrx.balanceOf(buyer1));
+        
+        console.log("\n=== Event Purchase Ticket Test PASSED! ===");
     }
     
     function testSetResaleRules() public {

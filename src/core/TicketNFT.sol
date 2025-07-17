@@ -40,8 +40,7 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
     mapping(uint256 => string) public ticketStatus; // "valid", "used", "refunded"
     bool public useAlgorithm1;
     
-    // Secret salt for QR challenge
-    bytes32 private immutable _secretSalt;
+    // Removed secret salt as we no longer use hash-based verification
     
     modifier onlyEventContract() {
         if(msg.sender != eventContract) revert OnlyEventContractCanCall();
@@ -49,7 +48,7 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
     }
     
     constructor(address trustedForwarder) ERC721("Ticket", "TIX") ERC2771Context(trustedForwarder) Ownable(msg.sender) {
-        _secretSalt = keccak256(abi.encodePacked(block.timestamp, block.prevrandao, msg.sender));
+        // Constructor simplified - no longer need secret salt
     }
     
     // Helper function to check if token exists
@@ -118,7 +117,7 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
         uint256 tokenId,
         uint256 tierId,
         uint256 originalPrice
-    ) public onlyEventContract nonReentrant returns (uint256) {
+    ) public override onlyEventContract nonReentrant returns (uint256) {
         return _mintTicketInternal(to, tokenId, tierId, originalPrice);
     }
     
@@ -193,32 +192,31 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
         emit TicketTransferred(tokenId, msg.sender, to);
     }
     
-    function generateTicketHash(uint256 tokenId) public view override returns (bytes32) {
+    function verifyTicketOwnership(uint256 tokenId) public view returns (bool) {
         if(!_tokenExists(tokenId)) revert TicketDoesNotExist();
         if(ticketMetadata[tokenId].used) revert TicketAlreadyUsed();
         
-        // Generate hash from token ID and secret salt
-        return keccak256(abi.encodePacked(
-            tokenId,
-            _secretSalt
-        ));
+        // Simply verify that the caller owns the token
+        return ownerOf(tokenId) == msg.sender;
     }
     
-    function verifyTicket(
-        uint256 tokenId,
-        bytes32 ticketHash
-    ) public view override returns (bool) {
+    function useTicketByOwner(uint256 tokenId) external nonReentrant {
         if(!_tokenExists(tokenId)) revert TicketDoesNotExist();
         if(ticketMetadata[tokenId].used) revert TicketAlreadyUsed();
         
-        // Generate expected hash from token ID
-        bytes32 expectedHash = keccak256(abi.encodePacked(
-            tokenId,
-            _secretSalt
-        ));
+        // Only token owner can use their own ticket
+        require(ownerOf(tokenId) == msg.sender, "Not ticket owner");
         
-        // Verify hash matches
-        return ticketHash == expectedHash;
+        // Mark ticket as used
+        ticketMetadata[tokenId].used = true;
+        
+        // Algorithm 1: Update status
+        if (useAlgorithm1) {
+            ticketStatus[tokenId] = "used";
+        }
+        
+        // Emit event
+        emit TicketUsed(tokenId, msg.sender);
     }
     
     function useTicket(uint256 tokenId) external override onlyEventContract {
@@ -238,7 +236,7 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
     }
     
     // Algorithm 1: Update ticket status
-    function updateStatus(uint256 tokenId, string memory newStatus) external onlyEventContract {
+    function updateStatus(uint256 tokenId, string memory newStatus) external override onlyEventContract {
         require(useAlgorithm1, "Only for Algorithm 1");
         require(_tokenExists(tokenId), "Token does not exist");
         
@@ -253,7 +251,7 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
     }
     
     // Algorithm 1: Get ticket status
-    function getTicketStatus(uint256 tokenId) external view returns (string memory) {
+    function getTicketStatus(uint256 tokenId) external view override returns (string memory) {
         if (useAlgorithm1) {
             require(_tokenExists(tokenId), "Token does not exist");
             return ticketStatus[tokenId];
@@ -363,7 +361,7 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
     function generateDynamicQR(uint256 tokenId) external view returns (bytes32) {
         require(isBurned[tokenId], "TicketNotBurned");
         uint256 timeBlock = block.timestamp / 1800; // 30 menit
-        return keccak256(abi.encodePacked(tokenId, msg.sender, timeBlock, _secretSalt));
+        return keccak256(abi.encodePacked(tokenId, msg.sender, timeBlock));
     }
     
     // Events

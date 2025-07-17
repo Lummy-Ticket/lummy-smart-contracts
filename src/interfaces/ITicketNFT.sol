@@ -27,12 +27,9 @@ interface ITicketNFT is IERC721 {
     
     function transferTicket(address to, uint256 tokenId) external;
     
-    function generateTicketHash(uint256 tokenId) external view returns (bytes32);
+    function verifyTicketOwnership(uint256 tokenId) external view returns (bool);
     
-    function verifyTicket(
-        uint256 tokenId,
-        bytes32 ticketHash
-    ) external view returns (bool);
+    function useTicketByOwner(uint256 tokenId) external;
     
     function useTicket(uint256 tokenId) external;
     

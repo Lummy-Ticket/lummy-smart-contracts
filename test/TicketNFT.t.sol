@@ -136,44 +136,44 @@ contract TicketNFTTest is Test {
         assertEq(ticketNFT.transferCount(tokenId), 1);
     }
     
-    // Test generate ticket hash
-    function testGenerateTicketHash() public {
+    // Test ticket ownership verification
+    function testVerifyTicketOwnership() public {
         // Mint tiket terlebih dahulu
         uint256 tokenId = _mintTicket(attendee1, 1, 100 * 10**2);
         
-        // Generate ticket hash
-        bytes32 ticketHash = ticketNFT.generateTicketHash(tokenId);
+        // Verify ticket ownership by owner
+        vm.startPrank(attendee1);
+        bool isOwner = ticketNFT.verifyTicketOwnership(tokenId);
+        assertTrue(isOwner);
+        vm.stopPrank();
         
-        // Verifikasi hash bukan bytes32(0)
-        assertTrue(ticketHash != bytes32(0));
-        
-        // Generate hash lagi untuk token yang sama
-        bytes32 secondHash = ticketNFT.generateTicketHash(tokenId);
-        
-        // Verifikasi hash konsisten untuk token yang sama
-        assertEq(ticketHash, secondHash);
+        // Verify ticket ownership by non-owner
+        vm.startPrank(attendee2);
+        bool isNotOwner = ticketNFT.verifyTicketOwnership(tokenId);
+        assertFalse(isNotOwner);
+        vm.stopPrank();
     }
     
-    // Test verifikasi tiket
-    function testVerifyTicket() public {
+    // Test use ticket by owner
+    function testUseTicketByOwner() public {
         // Mint tiket terlebih dahulu
         uint256 tokenId = _mintTicket(attendee1, 1, 100 * 10**2);
         
-        // Generate ticket hash
-        bytes32 ticketHash = ticketNFT.generateTicketHash(tokenId);
+        // Owner uses their own ticket
+        vm.startPrank(attendee1);
+        ticketNFT.useTicketByOwner(tokenId);
+        vm.stopPrank();
         
-        // Verifikasi tiket dengan hash yang benar
-        bool isValid = ticketNFT.verifyTicket(tokenId, ticketHash);
+        // Verify ticket is used
+        (,,,bool used,) = ticketNFT.ticketMetadata(tokenId);
+        assertTrue(used);
         
-        // Harusnya valid
-        assertTrue(isValid);
-        
-        // Test dengan hash yang salah
-        bytes32 wrongHash = keccak256("wrong hash");
-        bool isInvalid = ticketNFT.verifyTicket(tokenId, wrongHash);
-        
-        // Harusnya tidak valid
-        assertFalse(isInvalid);
+        // Test non-owner trying to use ticket
+        uint256 tokenId2 = _mintTicket(attendee2, 1, 100 * 10**2);
+        vm.startPrank(attendee1);
+        vm.expectRevert("Not ticket owner");
+        ticketNFT.useTicketByOwner(tokenId2);
+        vm.stopPrank();
     }
     
     // Test penggunaan tiket
@@ -191,13 +191,10 @@ contract TicketNFTTest is Test {
         assertTrue(used);
     }
     
-    // Test verifikasi tiket gagal untuk tiket yang sudah digunakan
-    function testRevertIfVerifyUsedTicket() public {
+    // Test verify ownership of used ticket fails
+    function testRevertIfVerifyUsedTicketOwnership() public {
         // Mint tiket terlebih dahulu
         uint256 tokenId = _mintTicket(attendee1, 1, 100 * 10**2);
-        
-        // Generate ticket hash sebelum tiket digunakan
-        bytes32 ticketHash = ticketNFT.generateTicketHash(tokenId);
         
         // Gunakan tiket
         vm.startPrank(eventAddress);
@@ -205,8 +202,10 @@ contract TicketNFTTest is Test {
         vm.stopPrank();
         
         // Ekspektasi revert karena tiket sudah digunakan
+        vm.startPrank(attendee1);
         vm.expectRevert(_TICKET_ALREADY_USED_ERROR_SELECTOR);
-        ticketNFT.verifyTicket(tokenId, ticketHash);
+        ticketNFT.verifyTicketOwnership(tokenId);
+        vm.stopPrank();
     }
     
     // Test penggunaan tiket hanya oleh event contract
