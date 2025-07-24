@@ -11,23 +11,25 @@
 - **Mekanisme Refund**: Burning NFT dengan proses refund otomatis
 - **Infrastruktur ERC-2771**: Dukungan transaksi gasless (saat ini dinonaktifkan)
 
-### 🔧 **Identified Issues & Proposed Revisions**
+---
 
-## 1. NFT Dynamic Metadata 🎨
+## 🔧 **Masalah yang Teridentifikasi & Revisi yang Diusulkan**
 
-### **Current State**
+### 1. NFT Dynamic Metadata 🎨
+
+#### **Kondisi Saat Ini**
 ```solidity
 function tokenURI(uint256 tokenId) public view override returns (string memory) {
-    return "https://example.com/api/ticket/metadata"; // Static URL
+    return "https://example.com/api/ticket/metadata"; // URL Statis
 }
 ```
 
-### **Problem**
-- All NFTs show same metadata regardless of status
-- Buyers on marketplaces (OpenSea) cannot distinguish valid/used tickets
-- No visual indication of ticket state
+#### **Masalah**
+- Semua NFT menampilkan metadata yang sama tanpa memperhatikan status
+- Pembeli di marketplace (OpenSea) tidak bisa membedakan tiket valid/bekas
+- Tidak ada indikasi visual dari status tiket
 
-### **Proposed Solution**
+#### **Solusi yang Diusulkan**
 ```solidity
 function tokenURI(uint256 tokenId) public view override returns (string memory) {
     string memory status = getTicketStatus(tokenId);
@@ -35,86 +37,127 @@ function tokenURI(uint256 tokenId) public view override returns (string memory) 
 }
 ```
 
-### **Expected Traits**
-- **Event Name**: "Summer Music Festival 2025"
+#### **Atribut yang Diharapkan**
+- **Nama Event**: "Summer Music Festival 2025"
 - **Tier**: "VIP", "Regular", "Economy"
 - **Status**: "Valid" → "Used" → "Refunded"
-- **Event Date**: "2025-07-15"
-- **Original Price**: "500000 IDRX"
-- **Purchase Date**: Auto-generated from metadata
+- **Tanggal Event**: "2025-07-15"
+- **Harga Asli**: "500000 IDRX"
+- **Tanggal Pembelian**: Otomatis dari metadata
 
-### **Impact**
-- Buyers can see ticket status before purchase
-- Visual differentiation prevents scams
-- Enhanced collectible value for used tickets
+#### **Dampak**
+- Pembeli bisa melihat status tiket sebelum membeli
+- Diferensiasi visual mencegah penipuan
+- Nilai koleksi yang meningkat untuk tiket bekas
 
 ---
 
-## 2. Tier Management Enhancement 🎫
+### 2. Mekanisme Escrow untuk Perlindungan Buyer 🔒
 
-### **Current State**
+#### **Kondisi Saat Ini**
 ```solidity
-// Only addTicketTier() and updateTicketTier() exist
-// No way to disable/remove tiers
+// User buy ticket → Organizer wallet (immediately)
+// Tidak ada proteksi jika organizer scam/kabur
 ```
 
-### **Problem**
-- Organizers cannot disable tiers after creation
-- No flexibility for tier management
-- Tiers remain purchasable even if no longer wanted
+#### **Masalah**
+- Organizer langsung dapat uang sebelum event selesai
+- Tidak ada jaminan refund jika event dibatalkan
+- Buyer berisiko kehilangan uang jika organizer tidak bertanggung jawab
+- Organizer bisa habiskan uang sebelum event berlangsung
 
-### **Proposed Solution**
-```solidity
-function disableTier(uint256 tierId) external onlyOrganizer {
-    require(tierId < tierCount, "Tier does not exist");
-    ticketTiers[tierId].active = false;
-    emit TierDisabled(tierId);
-}
+#### **Solusi yang Diusulkan**
+
+**Fund Flow Baru:**
+```
+Current (Buruk):
+User buy ticket → Organizer wallet (immediately)
+
+Proposed (Lebih Baik):
+User buy ticket → Event Contract (escrow) → Wait until event ends → Organizer claim
 ```
 
-### **Impact**
-- Better tier management flexibility
-- Organizers can respond to changing event requirements
-- Existing sold tickets remain valid
+**Komponen Utama:**
+
+**A. Escrow Storage:**
+```solidity
+mapping(uint256 => uint256) public eventEscrow; // eventId => total funds
+mapping(uint256 => uint256) public eventEndTime; // eventId => timestamp
+mapping(uint256 => EventStatus) public eventStatus; // eventId => status
+
+enum EventStatus { ACTIVE, COMPLETED, CANCELLED, CLAIMED }
+```
+
+**B. Fund Holding Logic:**
+- Contract menahan semua dana pembelian tiket
+- Platform fee tetap langsung ke platform
+- Bagian organizer ditahan sampai event selesai
+
+**C. Release Conditions:**
+- **Time-based**: Event sudah lewat end time
+- **Manual trigger**: Organizer claim funds secara manual
+- **Emergency**: Admin bisa release untuk edge cases
+
+**D. Cancellation Protection:**
+- Jika event cancel → automatic refund tersedia
+- Dana sudah ada di contract, tidak perlu tunggu organizer approve
+
+#### **State Management**
+- `ACTIVE` - Event berlangsung, dana di escrow
+- `COMPLETED` - Event selesai, organizer bisa claim
+- `CANCELLED` - Event dibatalkan, buyer bisa refund
+- `CLAIMED` - Organizer sudah ambil dana
+
+#### **Security Considerations**
+- Grace period setelah event berakhir (misal 7 hari) sebelum auto-release
+- Dispute window untuk handle keluhan
+- Platform admin bisa freeze dana jika ada dispute
+- Multi-sig approval untuk emergency actions
+
+#### **Strategi Implementasi**
+- **Phase 1**: Basic escrow - Hold dana sampai event end time
+- **Phase 2**: Advanced features - Partial releases, dispute resolution
+- **Phase 3**: Smart escrow - Oracle integration, insurance mechanisms
+
+#### **Dampak**
+Layak diimplementasi untuk kesuksesan platform jangka panjang dan user trust, meskipun ada trade-off kompleksitas (cash flow delay organizer, logika contract lebih kompleks).
 
 ---
 
-## 3. Resale Validation Strengthening 🏪
+### 3. Penguatan Validasi Resale 🏪
 
-### **Current State**
-- Contract blocks used tickets in `listTicketForResale()`
-- Frontend needs consistent validation
+#### **Kondisi Saat Ini**
+- Contract memblokir tiket bekas di `listTicketForResale()`
+- Frontend membutuhkan validasi yang konsisten
 
-### **Problem**
-- Inconsistent validation across different interfaces
-- Potential user confusion
+#### **Masalah**
+- Validasi tidak konsisten di berbagai interface
+- Potensi kebingungan user
 
-### **Proposed Solution**
-- Strengthen frontend validation layers
-- Add API validation before listing
-- Maintain contract validation (already implemented)
+#### **Solusi yang Diusulkan**
+- Perkuat lapisan validasi frontend
+- Tambahkan validasi API sebelum listing
+- Pertahankan validasi contract (sudah diimplementasi)
 
-### **Implementation Areas**
-- **Frontend**: Hide resale options for used/refunded tickets
-- **API**: Pre-validation before contract interaction
-- **UI/UX**: Clear messaging about ticket eligibility
+#### **Area Implementasi**
+- **Frontend**: Sembunyikan opsi resale untuk tiket bekas/refunded
+- **API**: Pra-validasi sebelum interaksi contract
+- **UI/UX**: Pesan yang jelas tentang kelayakan tiket
 
 ---
 
-## 4. Direct Wallet Gasless Implementation ⛽
+### 4. Implementasi Direct Wallet Gasless ⛽
 
-### **Current State**
-- ERC-2771 infrastructure exists but `trustedForwarder = address(0)`
-- Gasless transactions disabled
+#### **Kondisi Saat Ini**
+- Infrastruktur ERC-2771 ada tapi `trustedForwarder = address(0)`
+- Transaksi gasless dinonaktifkan
 
-### **Problem**
-- Users must pay gas for basic operations
-- Poor user experience for newcomers
-- High barrier to entry
+#### **Masalah**
+- User harus bayar gas untuk operasi dasar
+- Pengalaman user yang buruk untuk pendatang baru
+- Hambatan masuk yang tinggi
 
-### **Proposed Solution**
-Add proxy functions for platform wallet execution:
-
+#### **Solusi yang Diusulkan**
 ```solidity
 function purchaseTicketForUser(
     address user,
@@ -122,138 +165,252 @@ function purchaseTicketForUser(
     uint256 quantity,
     bytes calldata signature
 ) external onlyPlatform {
-    require(verifySignature(user, tierId, quantity, signature), "Invalid signature");
+    require(verifySignature(user, tierId, quantity, signature), "Signature tidak valid");
     _purchaseTicket(user, tierId, quantity);
 }
 ```
 
-### **Gasless Functions Priority**
-1. **Purchase ticket** - Most important for user onboarding
-2. **Update ticket status** - Staff operations
+#### **Prioritas Fungsi Gasless**
+1. **Purchase ticket** - Paling penting untuk onboarding user
+2. **Update ticket status** - Operasi staff
 3. **Claim refund** - Customer service
 
-### **Implementation Requirements**
-- Signature verification system
-- Nonce management for replay protection
-- Rate limiting to prevent abuse
+#### **Kebutuhan Implementasi**
+- Sistem verifikasi signature
+- Manajemen nonce untuk proteksi replay
+- Rate limiting untuk mencegah abuse
 
 ---
 
-## 5. Optional: Refund Deadline ⏰
+### 5. Resale Marketplace Enumeration Problem 🏪
 
-### **Current State**
-- Users can claim refunds indefinitely after event cancellation
-
-### **Business Question**
-Should there be a time limit for refund claims?
-
-### **Proposed Implementation**
+#### **Kondisi Saat Ini**
 ```solidity
-uint256 public constant REFUND_DEADLINE = 30 days;
+// Contract tidak menyediakan cara untuk enumerate listed tickets
+mapping(uint256 => ResaleInfo) public ticketResaleInfo;
+```
 
-function claimRefund(uint256 tokenId) external {
-    require(cancelled, "Event not cancelled");
-    require(block.timestamp <= cancelledAt + REFUND_DEADLINE, "Refund deadline passed");
-    // ... existing refund logic
+#### **Masalah**
+- Frontend tidak bisa list semua tickets yang dijual
+- Marketplace page tidak bisa populate data
+- Buyers tidak bisa browse available tickets
+- Search dan filter tidak mungkin diimplementasi
+
+#### **Solusi yang Diusulkan**
+```solidity
+uint256[] public listedTickets;
+mapping(address => uint256[]) public sellerTickets;
+
+function getListedTickets() external view returns (uint256[] memory) {
+    return listedTickets;
+}
+
+function getSellerTickets(address seller) external view returns (uint256[] memory) {
+    return sellerTickets[seller];
 }
 ```
 
-### **Pros & Cons**
-- **Pros**: Organizers can close books, finite liability
-- **Cons**: Users might miss deadline, customer service issues
+#### **Dampak**
+- Marketplace functionality bisa diimplementasi
+- Better user experience untuk browsing
+- Search dan filter features possible
 
 ---
 
-## 🤔 **Security & Edge Case Questions**
+### 6. Staff Management Security Vulnerability 🔐
 
-### **1. Token ID Collision Risk**
-**Q**: Can different events have colliding token IDs?
-**A**: ✅ **Safe** - Each event has unique eventId in token format
+#### **Kondisi Saat Ini**
+```solidity
+mapping(address => bool) public staffWhitelist;
+// Staff bisa akses semua functions tanpa restrictions
+```
 
-### **2. Staff Permission Management**
-**Q**: What happens to staff permissions if organizer changes?
-**A**: ⚠️ **Needs addressing** - Staff whitelist should reset or transfer
+#### **Masalah**
+- Staff punya unlimited access ke semua operations
+- Tidak ada role-based permissions
+- Staff bisa cancel events, change tiers, dll
+- Security vulnerability untuk privilege escalation
 
-### **3. Signature Security**
-**Q**: How to prevent replay attacks in gasless transactions?
-**A**: 🔧 **Requires** - Nonce system implementation
+#### **Solusi yang Diusulkan**
+```solidity
+enum StaffRole { SCANNER, CHECKIN, MANAGER }
+mapping(address => StaffRole) public staffRoles;
 
-### **4. Platform Wallet Security**
-**Q**: What if platform wallet is compromised?
-**A**: 🔧 **Requires** - Rate limiting and monitoring systems
+modifier onlyStaffRole(StaffRole requiredRole) {
+    require(staffRoles[msg.sender] >= requiredRole, "Insufficient privileges");
+    _;
+}
+```
 
-### **5. Metadata Caching**
-**Q**: How to ensure marketplaces show updated metadata?
-**A**: 📝 **Note** - Manual refresh required on OpenSea
-
-### **6. Used Ticket Value**
-**Q**: Do used tickets have collectible value?
-**A**: ✅ **Yes** - Event memorabilia, clearly marked as "USED"
-
-### **7. Tier Disable Impact**
-**Q**: What happens to existing tickets when tier is disabled?
-**A**: ✅ **No impact** - Existing tickets remain valid
-
-### **8. Event Cancellation Timing**
-**Q**: How to handle refunds if event cancelled after some tickets used?
-**A**: 🤔 **Policy decision** - Partial vs full refunds
-
-### **9. Algorithm Migration**
-**Q**: Compatibility with future Algorithm 2?
-**A**: ✅ **Backward compatible** - Algorithm 1 tickets remain valid
-
-### **10. Counter Continuation**
-**Q**: Should tier sequential counters reset when re-enabled?
-**A**: ❌ **No** - Continue counting to prevent token ID collisions
+#### **Dampak**
+- Better security dengan role-based access
+- Granular permissions untuk different staff levels
+- Reduced risk dari staff abuse
 
 ---
 
-## 🎯 **Implementation Priority**
+### 7. Algorithm Toggle Enforcement 🔄
 
-### **Phase 1: Critical Issues**
-1. **NFT Dynamic Metadata** - Marketplace safety
-2. **Tier Disable Function** - Operational flexibility
-3. **Resale Validation** - User experience consistency
+#### **Kondisi Saat Ini**
+```solidity
+bool public useAlgorithm1;
+// Tidak ada restrictions untuk switching mid-event
+```
 
-### **Phase 2: UX Improvements**
-4. **Direct Wallet Gasless** - Better user onboarding
-5. **Signature Security** - Nonce system implementation
+#### **Masalah**
+- Algorithm bisa diubah ketika event sudah running
+- Inconsistent behavior untuk existing tickets
+- Possible exploitation untuk bypass validations
+- Confusion antara algorithm implementations
 
-### **Phase 3: Policy Decisions**
-6. **Refund Deadline** - Business requirement clarification
+#### **Solusi yang Diusulkan**
+```solidity
+bool public algorithmLocked;
 
----
+modifier algorithmNotLocked() {
+    require(!algorithmLocked, "Algorithm sudah terkunci");
+    _;
+}
 
-## 🔧 **Technical Requirements**
+function lockAlgorithm() external onlyOrganizer {
+    algorithmLocked = true;
+}
+```
 
-### **For Dynamic Metadata**
-- IPFS structure setup with status-based folders
-- Image generation for valid/used/refunded states
-- Metadata JSON templates
-
-### **For Gasless Implementation**
-- Signature verification library
-- Nonce management system
-- Rate limiting implementation
-- Platform wallet security measures
-
-### **For Security**
-- Replay attack prevention
-- Access control reviews
-- Emergency pause mechanisms
-
----
-
-## 📝 **Notes for Development Team**
-
-1. **Backward Compatibility**: All changes should maintain compatibility with existing tickets
-2. **Security First**: Implement security measures before feature additions
-3. **Testing Coverage**: Comprehensive tests for all edge cases mentioned
-4. **Documentation**: Update function documentation for new features
-5. **Gas Optimization**: Consider gas costs for new functions
+#### **Dampak**
+- Consistency dalam event lifecycle
+- Prevention dari mid-event algorithm switching
+- Better predictability untuk users
 
 ---
 
-**Last Updated**: January 17, 2025
-**Status**: Ready for implementation discussion
-**Next Review**: After team consensus on priorities
+### 8. Batch Operations untuk Gas Optimization ⛽
+
+#### **Kondisi Saat Ini**
+```solidity
+// Users harus call purchaseTicket() multiple times
+function purchaseTicket(uint256 tierId, uint256 quantity) external;
+```
+
+#### **Masalah**
+- High gas costs untuk multiple ticket purchases
+- Multiple transactions required
+- Poor user experience
+- Network congestion dari many small transactions
+
+#### **Solusi yang Diusulkan**
+```solidity
+function batchPurchaseTickets(
+    uint256[] calldata tierIds,
+    uint256[] calldata quantities
+) external {
+    require(tierIds.length == quantities.length, "Array length mismatch");
+    for (uint i = 0; i < tierIds.length; i++) {
+        _purchaseTicket(tierIds[i], quantities[i]);
+    }
+}
+```
+
+#### **Dampak**
+- Reduced gas costs per transaction
+- Better user experience
+- Less network congestion
+
+---
+
+## 🤔 **Pertanyaan Keamanan & Edge Case**
+
+### **1. Risiko Collision Token ID**
+**T**: Apakah event yang berbeda bisa memiliki token ID yang bertabrakan?  
+**J**: ✅ **Aman** - Setiap event memiliki eventId unik dalam format token
+
+### **2. Keamanan Signature**
+**T**: Bagaimana mencegah replay attack dalam transaksi gasless?  
+**J**: 🔧 **Membutuhkan** - Implementasi sistem nonce
+
+### **3. Keamanan Platform Wallet**
+**T**: Bagaimana jika platform wallet dikompromikan?  
+**J**: 🔧 **Membutuhkan** - Sistem rate limiting dan monitoring
+
+### **4. Caching Metadata**
+**T**: Bagaimana memastikan marketplace menampilkan metadata terbaru?  
+**J**: 📝 **Catatan** - Perlu refresh manual di OpenSea
+
+### **5. Nilai Tiket Bekas**
+**T**: Apakah tiket bekas memiliki nilai koleksi?  
+**J**: ✅ **Ya** - Memorabilia event, jelas ditandai sebagai "USED"
+
+### **6. Timing Pembatalan Event**
+**T**: Bagaimana menangani refund jika event dibatalkan setelah beberapa tiket digunakan?  
+**J**: 🤔 **Keputusan kebijakan** - Refund parsial vs penuh
+
+### **7. Migrasi Algorithm**
+**T**: Kompatibilitas dengan Algorithm 2 di masa depan?  
+**J**: ✅ **Backward compatible** - Tiket Algorithm 1 tetap valid
+
+### **8. Kelanjutan Counter**
+**T**: Apakah sequential counter tier harus direset ketika diaktifkan kembali?  
+**J**: ❌ **Tidak** - Lanjutkan penghitungan untuk mencegah collision token ID
+
+---
+
+## 🎯 **Prioritas Implementasi**
+
+### **Fase 1: Issues Kritis (Blocking Production)**
+1. **Escrow Mechanism** - Perlindungan buyer fundamental
+2. **Staff Management Security** - Vulnerability critical
+3. **Resale Marketplace Enumeration** - Core marketplace feature
+
+### **Fase 2: Masalah Fungsionalitas Utama**
+4. **NFT Dynamic Metadata** - Marketplace safety
+5. **Algorithm Toggle Enforcement** - System consistency
+6. **Batch Operations** - Gas optimization
+
+### **Fase 3: Peningkatan UX & Validasi**
+7. **Validasi Resale Strengthening** - User experience consistency
+8. **Direct Wallet Gasless** - Onboarding improvement
+
+---
+
+## 🔧 **Kebutuhan Teknis**
+
+### **Untuk Dynamic Metadata**
+- Setup struktur IPFS dengan folder berbasis status
+- Generasi gambar untuk status valid/used/refunded
+- Template JSON metadata
+
+### **Untuk Implementasi Escrow**
+- Mapping storage untuk dana escrow per event
+- Time-based release mechanisms
+- Emergency controls dan multi-sig approval
+
+### **Untuk Staff Security**
+- Role-based access control implementation
+- Granular permission system
+- Privilege escalation prevention
+
+### **Untuk Gasless Implementation**
+- Library verifikasi signature
+- Sistem manajemen nonce
+- Implementasi rate limiting
+- Langkah keamanan platform wallet
+
+### **Untuk Keamanan**
+- Pencegahan replay attack
+- Review kontrol akses
+- Mekanisme pause darurat
+
+---
+
+## 📝 **Catatan untuk Tim Development**
+
+1. **Backward Compatibility**: Semua perubahan harus mempertahankan kompatibilitas dengan tiket yang ada
+2. **Security First**: Implementasikan langkah keamanan sebelum penambahan fitur
+3. **Testing Coverage**: Test komprehensif untuk semua edge case yang disebutkan
+4. **Dokumentasi**: Update dokumentasi fungsi untuk fitur baru
+5. **Optimasi Gas**: Pertimbangkan biaya gas untuk fungsi baru
+
+---
+
+**Status**: Siap untuk diskusi implementasi  
+**Review Selanjutnya**: Setelah konsensus tim tentang prioritas
