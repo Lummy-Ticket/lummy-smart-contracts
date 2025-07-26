@@ -326,7 +326,7 @@ contract Algorithm1Test is Test {
         console.log("\n--- Testing Access Control ---");
         console.log("Attempting update by non-staff (should fail)");
         vm.startPrank(attendee2);
-        vm.expectRevert("Only staff can call");
+        vm.expectRevert("Insufficient staff privileges");
         eventContract.updateTicketStatus(tokenId);
         vm.stopPrank();
         console.log("[OK] Non-staff correctly rejected from updating status");
@@ -346,7 +346,8 @@ contract Algorithm1Test is Test {
         
         // Purchase ticket
         console.log("\n--- Purchase Ticket for Refund Testing ---");
-        console.log("Attendee1 initial balance:", idrxToken.balanceOf(attendee1));
+        uint256 originalBalance = idrxToken.balanceOf(attendee1);
+        console.log("Attendee1 original balance:", originalBalance);
         console.log("Organizer initial balance:", idrxToken.balanceOf(organizer));
         
         vm.startPrank(attendee1);
@@ -355,13 +356,13 @@ contract Algorithm1Test is Test {
         vm.stopPrank();
         
         uint256 tokenId = (1 * 1e9) + (eventId * 1e6) + ((tier1Id + 1) * 1e5) + 1;
-        uint256 initialBalance = idrxToken.balanceOf(attendee1);
+        uint256 balanceAfterPurchase = idrxToken.balanceOf(attendee1);
         
         console.log("Generated token ID:", tokenId);
         console.log("Event ID:", eventId);
         console.log("Tier ID:", tier1Id);
         console.log("Token exists:", ticketNFT.balanceOf(attendee1) > 0);
-        console.log("Attendee1 balance after purchase:", initialBalance);
+        console.log("Attendee1 balance after purchase:", balanceAfterPurchase);
         console.log("Organizer balance after purchase:", idrxToken.balanceOf(organizer));
         console.log("Ticket owner:", ticketNFT.ownerOf(tokenId));
         
@@ -392,32 +393,31 @@ contract Algorithm1Test is Test {
         console.log("Organizer balance:", idrxToken.balanceOf(organizer));
         console.log("Ticket status before refund:", ticketNFT.getTicketStatus(tokenId));
         
-        // Claim refund
-        console.log("\n--- Claim Refund Process ---");
-        console.log("Attendee1 claiming refund for token:", tokenId);
-        vm.startPrank(attendee1);
-        ticketNFT.claimRefund(tokenId);
-        vm.stopPrank();
-        console.log("Refund claimed successfully");
-        
-        // Check refund was processed
-        console.log("\n--- Refund Verification ---");
+        // Auto-refund already processed during cancelEvent(), verify the result
+        console.log("\n--- Auto-Refund Verification ---");
         uint256 finalBalance = idrxToken.balanceOf(attendee1);
         uint256 organizerFinalBalance = idrxToken.balanceOf(organizer);
         console.log("Attendee1 final balance:", finalBalance);
         console.log("Organizer final balance:", organizerFinalBalance);
-        console.log("Expected final balance:", initialBalance + tier1Price);
-        console.log("Actual refund amount:", finalBalance - initialBalance);
+        console.log("Expected final balance:", originalBalance);
+        console.log("Actual balance matches expected:", finalBalance == originalBalance);
         
-        assertEq(finalBalance, initialBalance + tier1Price);
-        console.log("[OK] Refund amount correct");
+        assertEq(finalBalance, originalBalance);
+        console.log("[OK] Auto-refund processed correctly");
         
-        // Check NFT was burned
-        console.log("\n--- NFT Burn Verification ---");
-        console.log("Checking if NFT was burned...");
-        vm.expectRevert();
-        ticketNFT.ownerOf(tokenId);
-        console.log("[OK] NFT successfully burned after refund");
+        // Verify ticket status is "refunded"
+        console.log("\n--- Ticket Status Verification ---");
+        string memory finalStatus = ticketNFT.getTicketStatus(tokenId);
+        console.log("Final ticket status:", finalStatus);
+        assertEq(finalStatus, "refunded");
+        console.log("[OK] Ticket status correctly updated to 'refunded'");
+        
+        // Verify that the ticket cannot be used anymore
+        vm.startPrank(organizer);
+        vm.expectRevert("Ticket not valid");
+        eventContract.updateTicketStatus(tokenId);
+        vm.stopPrank();
+        console.log("[OK] Refunded ticket cannot be used");
         
         console.log("Attendee1 NFT balance after refund:", ticketNFT.balanceOf(attendee1));
         
@@ -597,7 +597,7 @@ contract Algorithm1Test is Test {
         
         // Test staff access control
         vm.startPrank(attendee1);
-        vm.expectRevert("Only staff can call");
+        vm.expectRevert("Insufficient staff privileges");
         eventContract.updateTicketStatus(tokenId);
         vm.stopPrank();
         

@@ -45,6 +45,12 @@ interface IEvent {
     
     function cancelEvent() external;
     
+    function markEventCompleted() external;
+    
+    function withdrawOrganizerFunds() external;
+    
+    function emergencyRefund(uint256 tokenId) external;
+    
     // Added getter functions
     function name() external view returns (string memory);
     function description() external view returns (string memory);
@@ -52,4 +58,7 @@ interface IEvent {
     function venue() external view returns (string memory);
     function ipfsMetadata() external view returns (string memory);
     function organizer() external view returns (address);
+    function cancelled() external view returns (bool);
+    function eventCompleted() external view returns (bool);
+    function organizerEscrow(address) external view returns (uint256);
 }

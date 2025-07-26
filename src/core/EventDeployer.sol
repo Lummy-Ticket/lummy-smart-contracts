@@ -18,16 +18,17 @@ contract EventDeployer {
         address platformFeeReceiver;
         bool useAlgorithm1;
         uint256 eventId;
+        address trustedForwarder;
     }
     
     function deployEventAndTicket(
         DeployParams calldata params
     ) external returns (address eventAddress, address ticketNFTAddress) {
-        // Deploy Event
-        Event newEvent = new Event(address(0));
+        // Deploy Event with trusted forwarder
+        Event newEvent = new Event(params.trustedForwarder);
         
-        // Deploy TicketNFT
-        TicketNFT newTicketNFT = new TicketNFT(address(0));
+        // Deploy TicketNFT with trusted forwarder
+        TicketNFT newTicketNFT = new TicketNFT(params.trustedForwarder);
         
         // Initialize contracts
         _initializeContracts(newEvent, newTicketNFT, params);

@@ -19,4 +19,9 @@ interface IEventFactory {
     function setPlatformFeeReceiver(address receiver) external;
     
     function getPlatformFeePercentage() external view returns (uint256);
+    
+    // Trusted forwarder management
+    function setTrustedForwarder(address forwarder) external;
+    
+    function getTrustedForwarder() external view returns (address);
 }
