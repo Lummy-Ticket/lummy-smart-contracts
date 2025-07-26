@@ -46,6 +46,12 @@ error EventNotCompleted(); /// @dev Thrown when attempting post-event operations
 error NoFundsToWithdraw(); /// @dev Thrown when attempting to withdraw with zero balance
 error WithdrawFailed(); /// @dev Thrown when organizer fund withdrawal fails
 error EventNotStarted(); /// @dev Thrown when attempting cancellation after event start
+error InvalidStaffAddress(); /// @dev Thrown when zero address provided for staff operations
+error CannotAssignNoneRole(); /// @dev Thrown when attempting to assign NONE role to staff
+error OnlyOrganizerCanAssignManager(); /// @dev Thrown when non-organizer tries to assign MANAGER role
+error CannotRemoveOrganizer(); /// @dev Thrown when attempting to remove organizer from staff
+error StaffHasNoRole(); /// @dev Thrown when removing staff that has no role assigned
+error OnlyOrganizerCanRemoveManager(); /// @dev Thrown when non-organizer tries to remove MANAGER
 
 /**
  * @title Event Contract
@@ -523,12 +529,12 @@ contract Event is IEvent, ERC2771Context, ReentrancyGuard, Ownable {
      * @custom:events Emits StaffRoleAssigned event
      */
     function addStaffWithRole(address staff, StaffRole role) external onlyStaffRole(StaffRole.MANAGER) {
-        require(staff != address(0), "Invalid staff address");
-        require(role != StaffRole.NONE, "Cannot assign NONE role");
+        if(staff == address(0)) revert InvalidStaffAddress();
+        if(role == StaffRole.NONE) revert CannotAssignNoneRole();
         
         // Prevent privilege escalation: only organizer can assign MANAGER role
         if (role == StaffRole.MANAGER && _msgSender() != organizer) {
-            revert("Only organizer can assign MANAGER role");
+            revert OnlyOrganizerCanAssignManager();
         }
         
         staffRoles[staff] = role;
@@ -546,12 +552,12 @@ contract Event is IEvent, ERC2771Context, ReentrancyGuard, Ownable {
      * @custom:events Emits StaffRoleRemoved event
      */
     function removeStaffRole(address staff) external onlyStaffRole(StaffRole.MANAGER) {
-        require(staff != organizer, "Cannot remove organizer");
-        require(staffRoles[staff] != StaffRole.NONE, "Staff has no role");
+        if(staff == organizer) revert CannotRemoveOrganizer();
+        if(staffRoles[staff] == StaffRole.NONE) revert StaffHasNoRole();
         
         // Prevent privilege escalation: only organizer can remove MANAGER role
         if (staffRoles[staff] == StaffRole.MANAGER && _msgSender() != organizer) {
-            revert("Only organizer can remove MANAGER role");
+            revert OnlyOrganizerCanRemoveManager();
         }
         
         staffRoles[staff] = StaffRole.NONE;
@@ -568,7 +574,7 @@ contract Event is IEvent, ERC2771Context, ReentrancyGuard, Ownable {
      * @custom:events Emits StaffAdded event
      */
     function addStaff(address staff) external onlyOrganizer {
-        require(staff != address(0), "Invalid staff address");
+        if(staff == address(0)) revert InvalidStaffAddress();
         staffWhitelist[staff] = true;
         staffRoles[staff] = StaffRole.SCANNER; // Default role
         emit StaffAdded(staff, _msgSender());
@@ -582,7 +588,7 @@ contract Event is IEvent, ERC2771Context, ReentrancyGuard, Ownable {
      * @custom:events Emits StaffRemoved event
      */
     function removeStaff(address staff) external onlyOrganizer {
-        require(staff != organizer, "Cannot remove organizer");
+        if(staff == organizer) revert CannotRemoveOrganizer();
         staffWhitelist[staff] = false;
         staffRoles[staff] = StaffRole.NONE;
         emit StaffRemoved(staff, _msgSender());
@@ -739,9 +745,12 @@ contract Event is IEvent, ERC2771Context, ReentrancyGuard, Ownable {
      * @custom:security Only NFT contract can call, only when event is cancelled
      * @custom:events Emits RefundProcessed event
      */
-    function processRefund(address to, uint256 amount) external {
+    function processRefund(address to, uint256 amount) external nonReentrant {
         require(msg.sender == address(ticketNFT), "Only NFT contract can process refund");
         require(cancelled, "Event not cancelled");
+        
+        // Validate contract has sufficient balance
+        require(idrxToken.balanceOf(address(this)) >= amount, "Insufficient contract balance");
         
         // Transfer from contract escrow
         bool success = idrxToken.transfer(to, amount);

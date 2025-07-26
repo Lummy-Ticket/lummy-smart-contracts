@@ -192,14 +192,17 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
         uint256 tierId,
         uint256 originalPrice
     ) external override onlyEventContract nonReentrant returns (uint256) {
-        return _mintTicketInternal(to, _tokenIdCounter, tierId, originalPrice);
+        if (useAlgorithm1) {
+            return _mintTicketAlgorithm1(to, tierId, originalPrice);
+        } else {
+            return _mintTicketOriginal(to, tierId, originalPrice);
+        }
     }
     
     /**
      * @notice Mints a ticket using Algorithm 1 (deterministic token ID)
      * @dev Only event contract can call. Uses provided token ID.
      * @param to Address to receive the ticket NFT
-     * @param tokenId Specific token ID to mint (Algorithm 1 format)
      * @param tierId Ticket tier identifier
      * @param originalPrice Original price paid for the ticket
      * @return uint256 Token ID of the minted ticket
@@ -208,11 +211,16 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
      */
     function mintTicket(
         address to,
-        uint256 tokenId,
+        uint256 /* tokenId */,
         uint256 tierId,
         uint256 originalPrice
     ) public override onlyEventContract nonReentrant returns (uint256) {
-        return _mintTicketInternal(to, tokenId, tierId, originalPrice);
+        // Note: tokenId parameter is ignored - each algorithm generates its own ID
+        if (useAlgorithm1) {
+            return _mintTicketAlgorithm1(to, tierId, originalPrice);
+        } else {
+            return _mintTicketOriginal(to, tierId, originalPrice);
+        }
     }
     
     /**
@@ -240,27 +248,60 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
         return (1 * 1e9) + (_eventId * 1e6) + (actualTierCode * 1e5) + sequential;
     }
     
-    // Internal mint function to avoid reentrancy conflicts
-    function _mintTicketInternal(
+    /**
+     * @dev Internal mint function for Algorithm 1 (deterministic token IDs)
+     * @param to Address to receive the ticket NFT
+     * @param tierId Ticket tier identifier
+     * @param originalPrice Original price paid for the ticket
+     * @return uint256 Generated token ID
+     */
+    function _mintTicketAlgorithm1(
         address to,
-        uint256 tokenId,
         uint256 tierId,
         uint256 originalPrice
     ) internal returns (uint256) {
-        if (useAlgorithm1) {
-            // Algorithm 1: Generate token ID using spec format
-            tierSequentialCounter[tierId]++;
-            tokenId = generateTokenId(eventId, tierId, tierSequentialCounter[tierId]);
-            _safeMint(to, tokenId);
-            
-            // Set Algorithm 1 status
-            ticketStatus[tokenId] = "valid";
-        } else {
-            // Original algorithm: Generate sequential token ID
-            tokenId = _tokenIdCounter;
-            _tokenIdCounter++;
-            _safeMint(to, tokenId);
-        }
+        // Algorithm 1: Generate deterministic token ID
+        tierSequentialCounter[tierId]++;
+        uint256 tokenId = generateTokenId(eventId, tierId, tierSequentialCounter[tierId]);
+        _safeMint(to, tokenId);
+        
+        // Set Algorithm 1 status
+        ticketStatus[tokenId] = "valid";
+        
+        // Set metadata
+        ticketMetadata[tokenId] = Structs.TicketMetadata({
+            eventId: 0,
+            tierId: tierId,
+            originalPrice: originalPrice,
+            used: false,
+            purchaseDate: block.timestamp
+        });
+        
+        // Initialize transfer count
+        transferCount[tokenId] = 0;
+        
+        // Emit event
+        emit TicketMinted(tokenId, to, tierId);
+        
+        return tokenId;
+    }
+    
+    /**
+     * @dev Internal mint function for Original algorithm (sequential token IDs)
+     * @param to Address to receive the ticket NFT
+     * @param tierId Ticket tier identifier
+     * @param originalPrice Original price paid for the ticket
+     * @return uint256 Generated token ID
+     */
+    function _mintTicketOriginal(
+        address to,
+        uint256 tierId,
+        uint256 originalPrice
+    ) internal returns (uint256) {
+        // Original algorithm: Use sequential token ID
+        uint256 tokenId = _tokenIdCounter;
+        _tokenIdCounter++;
+        _safeMint(to, tokenId);
         
         // Set metadata
         ticketMetadata[tokenId] = Structs.TicketMetadata({

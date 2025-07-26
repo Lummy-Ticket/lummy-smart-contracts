@@ -116,7 +116,7 @@ contract SecurityFixesTest is Test {
         
         // Test that only organizer can assign/remove MANAGER role
         vm.startPrank(manager1);
-        vm.expectRevert("Only organizer can assign MANAGER role");
+        vm.expectRevert(abi.encodeWithSignature("OnlyOrganizerCanAssignManager()"));
         eventContract.addStaffWithRole(user1, Event.StaffRole.MANAGER);
         vm.stopPrank();
         

@@ -319,11 +319,8 @@ contract SimpleForwarder is EIP712, Nonces {
         // Prevent insufficient gas attacks
         // Reference: https://ronan.eth.limo/blog/ethereum-gas-dangers/
         if (gasleft() <= req.gas / 63) {
-            // Consume all remaining gas to prevent griefing
-            /// @solidity memory-safe-assembly
-            assembly {
-                invalid()
-            }
+            // Revert to prevent griefing while preserving remaining gas
+            revert("Insufficient gas provided");
         }
 
         emit ForwardedTransaction(req.from, req.to, success, returndata);
