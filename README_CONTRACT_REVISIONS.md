@@ -82,6 +82,98 @@ Team telah berhasil menyelesaikan implementasi revisi major pada smart contracts
 - **Available**: Quantity parameter in `purchaseTicket()`
 - **Enhancement**: Multi-tier batch purchasing
 
+## 🚨 **NEW REQUIREMENTS - Universal Escrow Implementation**
+
+### 4. 🔄 **Universal Escrow System**
+**Status**: **NEEDS IMPLEMENTATION**
+- **Current Issue**: Only Algorithm 1 uses escrow, Original algorithm uses immediate payment
+- **Problem**: Frontend shows 3 algorithms but contract only supports 2 (Algorithm 1 vs Original)
+- **Requirement**: **ALL algorithms should use escrow for buyer protection**
+
+#### **Proposed Changes**:
+1. **Remove `useAlgorithm1` distinction for payment**:
+   - All events use escrow-based payment regardless of algorithm choice
+   - Algorithm choice affects NFT features, not payment method
+
+2. **Algorithm Behavior**:
+   - **Algorithm 1**: Pure Web3 NFT + Escrow + Updatable Status
+   - **Algorithm 2**: Dynamic QR + Escrow + Database Validation  
+   - **Algorithm 3**: Zero Knowledge + Escrow + Privacy Features
+   - **Remove**: Original immediate payment (security risk)
+
+3. **Implementation Strategy**:
+   ```solidity
+   // Remove this logic:
+   if (useAlgorithm1) {
+       // Escrow payment
+   } else {
+       // Direct payment
+   }
+   
+   // Replace with:
+   // Always use escrow payment for ALL algorithms
+   organizerEscrow[organizer] += totalPrice;
+   ```
+
+4. **Benefits**:
+   - **Universal buyer protection** - No event can run away with funds
+   - **Consistent user experience** - Same trust level across all algorithms  
+   - **Simplified contract logic** - Remove payment method branching
+   - **Platform credibility** - All events guaranteed safe
+
+#### **Contract Files to Update**:
+- `Event.sol`: Remove payment branching, always use escrow
+- `EventFactory.sol`: Update algorithm logic
+- `TicketNFT.sol`: Align with universal escrow model
+
+#### **Priority**: **HIGH** - Affects user trust and platform safety
+
+### 5. 📋 **Organizer Request System (Off-Chain Process)**
+**Status**: **FRONTEND ONLY - NOT IN CONTRACT**
+- **Current Implementation**: Anyone can directly call `createEvent()` without approval
+- **Frontend Flow**: Organizer request form → Admin approval → Off-chain profile management
+- **Contract Behavior**: Permissionless event creation (no whitelist required)
+
+#### **Current Situation**:
+- **Smart Contract**: Open access - any wallet can create events immediately
+- **Frontend**: Shows organizer request flow with approval process
+- **Data Flow**: Request data (wallet, name, email, notes) stored off-chain for admin review
+
+#### **For Next MVP** (Future Implementation):
+```solidity
+// Proposed: Add organizer whitelist system
+mapping(address => bool) public approvedOrganizers;
+mapping(address => OrganizerProfile) public organizerProfiles;
+
+struct OrganizerProfile {
+    string name;
+    string email;
+    bool verified;
+    uint256 eventsCreated;
+}
+
+modifier onlyApprovedOrganizer() {
+    require(approvedOrganizers[msg.sender], "Not approved organizer");
+    _;
+}
+
+function createEvent(...) external onlyApprovedOrganizer returns (address) {
+    // Event creation with organizer verification
+}
+```
+
+#### **Benefits of Future Implementation**:
+- **Quality Control**: Prevent spam/fake events
+- **Brand Protection**: Verified organizers only
+- **Support Integration**: Link events to organizer profiles
+- **Analytics**: Track organizer performance
+
+#### **Current Workaround**:
+- Frontend collects organizer info for admin review
+- Admin manually approves requests off-chain
+- Approved organizers get access to create events
+- Event creation remains permissionless at contract level
+
 ---
 
 ## 🎯 **Development Priority Update**
