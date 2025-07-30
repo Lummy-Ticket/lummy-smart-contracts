@@ -2,8 +2,8 @@
 pragma solidity 0.8.29;
 
 import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
-import "src/libraries/Structs.sol";
-import "src/interfaces/ITicketNFT.sol";
+import "src/shared/libraries/Structs.sol";
+import "src/shared/interfaces/ITicketNFT.sol";
 
 /// @title LibAppStorage - Application storage library for Diamond pattern
 /// @author Lummy Protocol Team
@@ -41,10 +41,8 @@ library LibAppStorage {
         address platformFeeReceiver;
         
         // ========== ALGORITHM CONFIGURATION ==========
-        /// @notice Algorithm configuration
-        uint256 eventId;                    // Unique ID for Algorithm 1
-        bool useAlgorithm1;                 // Algorithm selection flag
-        bool algorithmLocked;               // Prevents algorithm changes
+        /// @notice Algorithm configuration (standardized to Algorithm 1)
+        uint256 eventId;                    // Unique ID for deterministic token generation
         
         // ========== CONTRACT REFERENCES ==========
         /// @notice Contract references
@@ -70,6 +68,11 @@ library LibAppStorage {
         /// @notice Algorithm 1 specific data
         mapping(uint256 => bool) ticketExists;      // Token ID existence tracking
         mapping(address => uint256) organizerEscrow; // Escrow funds for organizers
+        
+        // ========== PLATFORM FEES ==========
+        /// @notice Platform fee collection and management
+        uint256 platformFeesCollected;                  // Total platform fees collected
+        uint256 platformFeesWithdrawn;                  // Total platform fees withdrawn
         
         // ========== ANALYTICS & STATISTICS ==========
         /// @notice Event analytics data (for future AnalyticsFacet)
@@ -139,17 +142,6 @@ library LibAppStorage {
         return appStorage().eventCompleted;
     }
 
-    /// @notice Gets the current algorithm mode
-    /// @return True if using Algorithm 1, false for original
-    function useAlgorithm1() internal view returns (bool) {
-        return appStorage().useAlgorithm1;
-    }
-
-    /// @notice Checks if algorithm is locked
-    /// @return True if algorithm is locked
-    function isAlgorithmLocked() internal view returns (bool) {
-        return appStorage().algorithmLocked;
-    }
 
     /// @notice Gets staff role for an address
     /// @param account Address to check
@@ -222,7 +214,6 @@ library LibAppStorage {
     error InsufficientStaffPrivileges(address account, StaffRole required, StaffRole actual);
     error EventIsCancelled();
     error EventNotActive();
-    error AlgorithmIsLocked();
 
     /// @notice Modifier to restrict access to organizer only
     modifier onlyOrganizer() {
@@ -258,11 +249,4 @@ library LibAppStorage {
         _;
     }
 
-    /// @notice Modifier to prevent algorithm changes when locked
-    modifier algorithmNotLocked() {
-        if (appStorage().algorithmLocked) {
-            revert AlgorithmIsLocked();
-        }
-        _;
-    }
 }

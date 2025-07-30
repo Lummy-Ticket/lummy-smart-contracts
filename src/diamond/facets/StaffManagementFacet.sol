@@ -5,8 +5,8 @@ import {LibAppStorage} from "src/diamond/LibAppStorage.sol";
 import {ReentrancyGuard} from "@openzeppelin/utils/ReentrancyGuard.sol";
 import {ERC2771Context} from "@openzeppelin/metatx/ERC2771Context.sol";
 import {Context} from "@openzeppelin/utils/Context.sol";
-import "src/libraries/Structs.sol";
-import "src/interfaces/ITicketNFT.sol";
+import "src/shared/libraries/Structs.sol";
+import "src/shared/interfaces/ITicketNFT.sol";
 
 /// @title StaffManagementFacet - Staff role management functionality facet
 /// @author Lummy Protocol Team
@@ -115,7 +115,7 @@ contract StaffManagementFacet is ReentrancyGuard, ERC2771Context {
             revert InsufficientStaffPrivileges();
         }
         
-        require(s.useAlgorithm1, "Only for Algorithm 1");
+        // Algorithm 1 is always used
         require(s.ticketExists[tokenId], "Ticket does not exist");
         
         string memory currentStatus = s.ticketNFT.getTicketStatus(tokenId);
@@ -137,7 +137,7 @@ contract StaffManagementFacet is ReentrancyGuard, ERC2771Context {
             revert InsufficientStaffPrivileges();
         }
         
-        require(s.useAlgorithm1, "Only for Algorithm 1");
+        // Algorithm 1 is always used
         
         for (uint256 i = 0; i < tokenIds.length; i++) {
             uint256 tokenId = tokenIds[i];
@@ -175,30 +175,18 @@ contract StaffManagementFacet is ReentrancyGuard, ERC2771Context {
             revert InsufficientStaffPrivileges();
         }
         
-        if (s.useAlgorithm1) {
-            if (!s.ticketExists[tokenId]) {
-                return (false, address(0), 0, "nonexistent");
-            }
-            
-            owner = s.ticketNFT.ownerOf(tokenId);
-            status = s.ticketNFT.getTicketStatus(tokenId);
-            isValid = keccak256(bytes(status)) == keccak256(bytes("valid"));
-            
-            // Get tier ID from ticket metadata
-            Structs.TicketMetadata memory metadata = s.ticketNFT.getTicketMetadata(tokenId);
-            tierId = metadata.tierId;
-        } else {
-            // Original algorithm validation
-            try s.ticketNFT.ownerOf(tokenId) returns (address tokenOwner) {
-                owner = tokenOwner;
-                Structs.TicketMetadata memory metadata = s.ticketNFT.getTicketMetadata(tokenId);
-                isValid = !metadata.used;
-                tierId = metadata.tierId;
-                status = metadata.used ? "used" : "valid";
-            } catch {
-                return (false, address(0), 0, "nonexistent");
-            }
+        // Always use Algorithm 1 validation
+        if (!s.ticketExists[tokenId]) {
+            return (false, address(0), 0, "nonexistent");
         }
+        
+        owner = s.ticketNFT.ownerOf(tokenId);
+        status = s.ticketNFT.getTicketStatus(tokenId);
+        isValid = keccak256(bytes(status)) == keccak256(bytes("valid"));
+        
+        // Get tier ID from ticket metadata
+        Structs.TicketMetadata memory metadata = s.ticketNFT.getTicketMetadata(tokenId);
+        tierId = metadata.tierId;
     }
 
     /// @notice Gets staff role for an address

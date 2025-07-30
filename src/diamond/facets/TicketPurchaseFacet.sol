@@ -5,11 +5,11 @@ import {LibAppStorage} from "src/diamond/LibAppStorage.sol";
 import {ReentrancyGuard} from "@openzeppelin/utils/ReentrancyGuard.sol";
 import {ERC2771Context} from "@openzeppelin/metatx/ERC2771Context.sol";
 import {Context} from "@openzeppelin/utils/Context.sol";
-import "src/libraries/Structs.sol";
-import "src/libraries/Constants.sol";
-import "src/libraries/TicketLib.sol";
+import "src/shared/libraries/Structs.sol";
+import "src/shared/libraries/Constants.sol";
+import "src/shared/libraries/TicketLib.sol";
 import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
-import "src/interfaces/ITicketNFT.sol";
+import "src/shared/interfaces/ITicketNFT.sol";
 
 /// @title TicketPurchaseFacet - Ticket purchasing functionality facet
 /// @author Lummy Protocol Team
@@ -48,11 +48,8 @@ contract TicketPurchaseFacet is ReentrancyGuard, ERC2771Context {
         
         uint256 totalPrice = tier.price * _quantity;
         
-        if (s.useAlgorithm1) {
-            _purchaseAlgorithm1(s, tier, _tierId, _quantity, totalPrice);
-        } else {
-            _purchaseOriginal(s, tier, _tierId, _quantity, totalPrice);
-        }
+        // Always use escrow model (Algorithm 1)
+        _purchaseTicket(s, tier, _tierId, _quantity, totalPrice);
         
         // Update sold count and analytics
         tier.sold += _quantity;
@@ -63,13 +60,13 @@ contract TicketPurchaseFacet is ReentrancyGuard, ERC2771Context {
         emit TicketPurchased(_msgSender(), _tierId, _quantity, totalPrice);
     }
 
-    /// @notice Internal function for Algorithm 1 purchases (escrow model)
+    /// @notice Internal function for ticket purchases (escrow model)
     /// @param s App storage reference
     /// @param tier Ticket tier reference
     /// @param _tierId Tier ID
     /// @param _quantity Quantity to purchase
     /// @param totalPrice Total price for purchase
-    function _purchaseAlgorithm1(
+    function _purchaseTicket(
         LibAppStorage.AppStorage storage s,
         Structs.TicketTier storage tier,
         uint256 _tierId,
@@ -81,8 +78,15 @@ contract TicketPurchaseFacet is ReentrancyGuard, ERC2771Context {
             revert TokenTransferFailed();
         }
         
-        // Add to organizer escrow
-        s.organizerEscrow[s.organizer] += totalPrice;
+        // Calculate platform fee (7% of total price)
+        uint256 platformFee = (totalPrice * Constants.PLATFORM_PRIMARY_FEE_PERCENTAGE) / Constants.BASIS_POINTS;
+        uint256 escrowAmount = totalPrice - platformFee;
+        
+        // Add platform fee to collection
+        s.platformFeesCollected += platformFee;
+        
+        // Add remaining amount to organizer escrow (93% of ticket price)
+        s.organizerEscrow[s.organizer] += escrowAmount;
         
         // Mint NFT tickets with deterministic Algorithm 1 token IDs
         for (uint256 i = 0; i < _quantity; i++) {
@@ -92,41 +96,6 @@ contract TicketPurchaseFacet is ReentrancyGuard, ERC2771Context {
         }
     }
 
-    /// @notice Internal function for Original algorithm purchases (immediate payment)
-    /// @param s App storage reference
-    /// @param tier Ticket tier reference
-    /// @param _tierId Tier ID
-    /// @param _quantity Quantity to purchase
-    /// @param totalPrice Total price for purchase
-    function _purchaseOriginal(
-        LibAppStorage.AppStorage storage s,
-        Structs.TicketTier storage tier,
-        uint256 _tierId,
-        uint256 _quantity,
-        uint256 totalPrice
-    ) internal {
-        // Transfer tokens to contract first
-        if (!s.idrxToken.transferFrom(_msgSender(), address(this), totalPrice)) {
-            revert TokenTransferFailed();
-        }
-        
-        // Calculate and distribute platform fee
-        uint256 platformFee = (totalPrice * Constants.PLATFORM_FEE_PERCENTAGE) / Constants.BASIS_POINTS;
-        if (!s.idrxToken.transfer(s.platformFeeReceiver, platformFee)) {
-            revert PlatformFeeTransferFailed();
-        }
-        
-        // Transfer organizer share immediately
-        uint256 organizerShare = totalPrice - platformFee;
-        if (!s.idrxToken.transfer(s.organizer, organizerShare)) {
-            revert OrganizerPaymentFailed();
-        }
-        
-        // Mint NFT tickets with sequential token IDs
-        for (uint256 i = 0; i < _quantity; i++) {
-            s.ticketNFT.mintTicket(_msgSender(), _tierId, tier.price);
-        }
-    }
 
     /// @notice Allows organizer to withdraw escrowed funds after event completion
     function withdrawOrganizerFunds() external nonReentrant {
@@ -177,14 +146,10 @@ contract TicketPurchaseFacet is ReentrancyGuard, ERC2771Context {
         // Get ticket metadata for refund amount
         Structs.TicketMetadata memory metadata = s.ticketNFT.getTicketMetadata(tokenId);
         
-        // Algorithm-specific validation
-        if (s.useAlgorithm1) {
-            string memory status = s.ticketNFT.getTicketStatus(tokenId);
-            require(keccak256(bytes(status)) == keccak256(bytes("valid")), "Ticket not eligible for refund");
-            s.ticketNFT.updateStatus(tokenId, "refunded");
-        } else {
-            require(!metadata.used, "Ticket already used");
-        }
+        // Validate ticket status (always Algorithm 1)
+        string memory status = s.ticketNFT.getTicketStatus(tokenId);
+        require(keccak256(bytes(status)) == keccak256(bytes("valid")), "Ticket not eligible for refund");
+        s.ticketNFT.updateStatus(tokenId, "refunded");
         
         uint256 refundAmount = metadata.originalPrice;
         
@@ -211,6 +176,40 @@ contract TicketPurchaseFacet is ReentrancyGuard, ERC2771Context {
     function getUserPurchaseCount(address user) external view returns (uint256) {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         return s.userPurchaseCount[user];
+    }
+
+    // ========== PLATFORM FEE FUNCTIONS ==========
+
+    /// @notice Gets total platform fees collected
+    /// @return Total platform fees available for withdrawal
+    function getPlatformFeesBalance() external view returns (uint256) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return s.platformFeesCollected - s.platformFeesWithdrawn;
+    }
+
+    /// @notice Gets total platform fees collected (including withdrawn)
+    /// @return Total platform fees ever collected
+    function getTotalPlatformFeesCollected() external view returns (uint256) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return s.platformFeesCollected;
+    }
+
+    /// @notice Allows platform to withdraw collected fees
+    /// @dev Only callable by factory (platform admin)
+    function withdrawPlatformFees() external nonReentrant {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        require(_msgSender() == s.factory, "Only platform can withdraw fees");
+        
+        uint256 availableFees = s.platformFeesCollected - s.platformFeesWithdrawn;
+        if (availableFees == 0) revert NoFundsToWithdraw();
+        
+        // Update withdrawn amount before transfer (checks-effects-interactions)
+        s.platformFeesWithdrawn += availableFees;
+        
+        // Transfer platform fees to factory
+        if (!s.idrxToken.transfer(s.factory, availableFees)) revert WithdrawFailed();
+        
+        emit PlatformFeesWithdrawn(s.factory, availableFees);
     }
 
     /// @notice Gets sales statistics for a tier
@@ -275,5 +274,6 @@ contract TicketPurchaseFacet is ReentrancyGuard, ERC2771Context {
     // Events
     event TicketPurchased(address indexed buyer, uint256 indexed tierId, uint256 quantity, uint256 totalPrice);
     event OrganizerFundsWithdrawn(address indexed organizer, uint256 amount);
+    event PlatformFeesWithdrawn(address indexed platform, uint256 amount);
     event RefundProcessed(address indexed to, uint256 amount);
 }

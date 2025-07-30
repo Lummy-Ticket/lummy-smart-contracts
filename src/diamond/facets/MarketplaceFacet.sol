@@ -5,11 +5,11 @@ import {LibAppStorage} from "src/diamond/LibAppStorage.sol";
 import {ReentrancyGuard} from "@openzeppelin/utils/ReentrancyGuard.sol";
 import {ERC2771Context} from "@openzeppelin/metatx/ERC2771Context.sol";
 import {Context} from "@openzeppelin/utils/Context.sol";
-import "src/libraries/Structs.sol";
-import "src/libraries/Constants.sol";
-import "src/libraries/TicketLib.sol";
+import "src/shared/libraries/Structs.sol";
+import "src/shared/libraries/Constants.sol";
+import "src/shared/libraries/TicketLib.sol";
 import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
-import "src/interfaces/ITicketNFT.sol";
+import "src/shared/interfaces/ITicketNFT.sol";
 
 /// @title MarketplaceFacet - Resale marketplace functionality facet
 /// @author Lummy Protocol Team
@@ -49,12 +49,10 @@ contract MarketplaceFacet is ReentrancyGuard, ERC2771Context {
         Structs.TicketMetadata memory metadata = s.ticketNFT.getTicketMetadata(_tokenId);
         if (metadata.used) revert TicketUsed();
         
-        // Additional check for Algorithm 1 ticket status
-        if (s.useAlgorithm1) {
-            string memory status = s.ticketNFT.getTicketStatus(_tokenId);
-            if (keccak256(bytes(status)) != keccak256(bytes("valid"))) {
-                revert TicketUsed();
-            }
+        // Check ticket status (always Algorithm 1)
+        string memory status = s.ticketNFT.getTicketStatus(_tokenId);
+        if (keccak256(bytes(status)) != keccak256(bytes("valid"))) {
+            revert TicketUsed();
         }
         
         // Validate resale price against markup limits
@@ -96,7 +94,7 @@ contract MarketplaceFacet is ReentrancyGuard, ERC2771Context {
         (uint256 organizerFee, uint256 platformFee) = TicketLib.calculateFees(
             listing.price,
             s.resaleRules.organizerFeePercentage,
-            Constants.PLATFORM_FEE_PERCENTAGE
+            Constants.PLATFORM_RESALE_FEE_PERCENTAGE  // 3% platform fee on resales
         );
         
         // Calculate seller amount
@@ -107,13 +105,13 @@ contract MarketplaceFacet is ReentrancyGuard, ERC2771Context {
             revert PaymentFailed();
         }
         
-        // Transfer fees to respective parties
+        // Transfer organizer fee directly
         if (!s.idrxToken.transfer(s.organizer, organizerFee)) {
             revert OrganizerFeeTransferFailed();
         }
-        if (!s.idrxToken.transfer(s.platformFeeReceiver, platformFee)) {
-            revert PlatformFeeTransferFailed();
-        }
+        
+        // Add platform fee to collection (consistent with primary sales)
+        s.platformFeesCollected += platformFee;
         
         // Transfer seller amount
         if (!s.idrxToken.transfer(listing.seller, sellerAmount)) {
@@ -257,7 +255,7 @@ contract MarketplaceFacet is ReentrancyGuard, ERC2771Context {
         (organizerFee, platformFee) = TicketLib.calculateFees(
             resalePrice,
             s.resaleRules.organizerFeePercentage,
-            Constants.PLATFORM_FEE_PERCENTAGE
+            Constants.PLATFORM_RESALE_FEE_PERCENTAGE  // 3% platform fee on resales
         );
         
         sellerAmount = resalePrice - organizerFee - platformFee;

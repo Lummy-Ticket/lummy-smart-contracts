@@ -5,10 +5,10 @@ import {LibAppStorage} from "src/diamond/LibAppStorage.sol";
 import {ReentrancyGuard} from "@openzeppelin/utils/ReentrancyGuard.sol";
 import {ERC2771Context} from "@openzeppelin/metatx/ERC2771Context.sol";
 import {Context} from "@openzeppelin/utils/Context.sol";
-import "src/libraries/Structs.sol";
-import "src/libraries/Constants.sol";
+import "src/shared/libraries/Structs.sol";
+import "src/shared/libraries/Constants.sol";
 import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
-import "src/interfaces/ITicketNFT.sol";
+import "src/shared/interfaces/ITicketNFT.sol";
 
 /// @title EventCoreFacet - Core event functionality facet
 /// @author Lummy Protocol Team
@@ -161,29 +161,14 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
         emit TicketTierUpdated(_tierId, _name, _price, _available);
     }
 
-    /// @notice Sets the algorithm mode for the event
-    /// @param _useAlgorithm1 True for Algorithm 1 (escrow), false for Original
-    /// @param _eventId Event ID for Algorithm 1 (ignored for Original)
-    function setAlgorithm1(bool _useAlgorithm1, uint256 _eventId) external {
+    /// @notice Sets the event ID for deterministic token generation
+    /// @param _eventId Unique event ID for Algorithm 1 token generation
+    function setEventId(uint256 _eventId) external {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         if (msg.sender != s.factory) revert OnlyFactoryCanCall();
-        if (s.algorithmLocked) revert LibAppStorage.AlgorithmIsLocked();
         
-        s.useAlgorithm1 = _useAlgorithm1;
-        if (_useAlgorithm1) {
-            s.eventId = _eventId;
-        }
-
-        emit AlgorithmSet(_useAlgorithm1, _eventId);
-    }
-
-    /// @notice Permanently locks the algorithm to prevent mid-event changes
-    function lockAlgorithm() external {
-        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-        if (_msgSender() != s.organizer) revert OnlyOrganizerCanCall();
-        
-        s.algorithmLocked = true;
-        emit AlgorithmLocked();
+        s.eventId = _eventId;
+        emit EventIdSet(_eventId);
     }
 
     /// @notice Configures resale marketplace rules for the event
@@ -263,16 +248,12 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
     /// @notice Gets event status flags
     /// @return cancelled Whether event is cancelled
     /// @return completed Whether event is completed
-    /// @return useAlgorithm1 Whether using Algorithm 1
-    /// @return algorithmLocked Whether algorithm is locked
     function getEventStatus() external view returns (
         bool cancelled,
-        bool completed,
-        bool useAlgorithm1,
-        bool algorithmLocked
+        bool completed
     ) {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-        return (s.cancelled, s.eventCompleted, s.useAlgorithm1, s.algorithmLocked);
+        return (s.cancelled, s.eventCompleted);
     }
 
     /// @notice Gets ticket tier information
@@ -318,8 +299,7 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
     event TicketNFTSet(address indexed ticketNFT, address indexed idrxToken, address indexed platformFeeReceiver);
     event TicketTierAdded(uint256 indexed tierId, string name, uint256 price);
     event TicketTierUpdated(uint256 indexed tierId, string name, uint256 price, uint256 available);
-    event AlgorithmSet(bool useAlgorithm1, uint256 eventId);
-    event AlgorithmLocked();
+    event EventIdSet(uint256 eventId);
     event ResaleRulesUpdated(uint256 maxMarkupPercentage, uint256 organizerFeePercentage);
     event EventCancelled();
     event EventCompleted();
