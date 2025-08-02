@@ -16,18 +16,11 @@ import {IDiamondLoupe} from "src/diamond/interfaces/IDiamondLoupe.sol";
 import {MockIDRX} from "src/shared/contracts/MockIDRX.sol";
 import {SimpleForwarder} from "src/shared/contracts/SimpleForwarder.sol";
 
-/// @title DeployDiamondFixed - Complete Diamond deployment with correct function selectors
-/// @notice Deploys Diamond with auto-extracted selectors from actual contract ABIs
-contract DeployDiamondFixed is Script {
+/// @title DeployComplete - Complete Diamond deployment with TicketNFT integration
+/// @notice Deploys Diamond, TicketNFT, and sets up proper connections
+contract DeployComplete is Script {
     struct DeploymentResult {
         address diamond;
-        address diamondCutFacet;
-        address diamondLoupeFacet;
-        address ownershipFacet;
-        address eventCoreFacet;
-        address ticketPurchaseFacet;
-        address marketplaceFacet;
-        address staffManagementFacet;
         address ticketNFT;
         address mockIDRX;
         address trustedForwarder;
@@ -37,7 +30,7 @@ contract DeployDiamondFixed is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
         
-        console2.log("=== DEPLOYING FIXED DIAMOND ===");
+        console2.log("=== DEPLOYING COMPLETE DIAMOND WITH TICKET NFT ===");
         console2.log("Deployer:", deployer);
         console2.log("Balance:", deployer.balance);
 
@@ -48,7 +41,6 @@ contract DeployDiamondFixed is Script {
         vm.stopBroadcast();
 
         _printResults(result);
-        _printTestInstructions(result);
     }
 
     function _deployAll(address deployer) internal returns (DeploymentResult memory result) {
@@ -61,82 +53,98 @@ contract DeployDiamondFixed is Script {
         // Deploy SimpleForwarder
         result.trustedForwarder = address(new SimpleForwarder(deployer));
         console2.log("SimpleForwarder:", result.trustedForwarder);
+        
+        // Deploy TicketNFT FIRST
+        result.ticketNFT = address(new TicketNFT(result.trustedForwarder));
+        console2.log("TicketNFT:", result.ticketNFT);
 
-        console2.log("\n2. Deploying facets...");
+        console2.log("\n2. Deploying Diamond facets...");
         
         // Deploy all facets
-        result.diamondCutFacet = address(new DiamondCutFacet());
-        result.diamondLoupeFacet = address(new DiamondLoupeFacet());
-        result.ownershipFacet = address(new OwnershipFacet());
-        result.eventCoreFacet = address(new EventCoreFacet(result.trustedForwarder));
-        result.ticketPurchaseFacet = address(new TicketPurchaseFacet(result.trustedForwarder));
-        result.marketplaceFacet = address(new MarketplaceFacet(result.trustedForwarder));
-        result.staffManagementFacet = address(new StaffManagementFacet(result.trustedForwarder));
+        address diamondCutFacet = address(new DiamondCutFacet());
+        address diamondLoupeFacet = address(new DiamondLoupeFacet());
+        address ownershipFacet = address(new OwnershipFacet());
+        address eventCoreFacet = address(new EventCoreFacet(result.trustedForwarder));
+        address ticketPurchaseFacet = address(new TicketPurchaseFacet(result.trustedForwarder));
+        address marketplaceFacet = address(new MarketplaceFacet(result.trustedForwarder));
+        address staffManagementFacet = address(new StaffManagementFacet(result.trustedForwarder));
 
-        console2.log("DiamondCutFacet:", result.diamondCutFacet);
-        console2.log("DiamondLoupeFacet:", result.diamondLoupeFacet);
-        console2.log("OwnershipFacet:", result.ownershipFacet);
-        console2.log("EventCoreFacet:", result.eventCoreFacet);
-        console2.log("TicketPurchaseFacet:", result.ticketPurchaseFacet);
-        console2.log("MarketplaceFacet:", result.marketplaceFacet);
-        console2.log("StaffManagementFacet:", result.staffManagementFacet);
+        console2.log("All facets deployed successfully");
 
-        console2.log("\n3. Preparing diamond cuts with CORRECT selectors...");
+        console2.log("\n3. Preparing diamond cuts...");
         
-        // Prepare complete diamond cuts with CORRECT selectors
+        // Prepare complete diamond cuts
         IDiamondCut.FacetCut[] memory cuts = new IDiamondCut.FacetCut[](7);
         
         cuts[0] = IDiamondCut.FacetCut({
-            facetAddress: result.diamondCutFacet,
+            facetAddress: diamondCutFacet,
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: _getDiamondCutSelectors()
         });
         
         cuts[1] = IDiamondCut.FacetCut({
-            facetAddress: result.diamondLoupeFacet,
+            facetAddress: diamondLoupeFacet,
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: _getDiamondLoupeSelectors()
         });
         
         cuts[2] = IDiamondCut.FacetCut({
-            facetAddress: result.ownershipFacet,
+            facetAddress: ownershipFacet,
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: _getOwnershipSelectors()
         });
         
         cuts[3] = IDiamondCut.FacetCut({
-            facetAddress: result.eventCoreFacet,
+            facetAddress: eventCoreFacet,
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: _getEventCoreSelectors()
         });
         
         cuts[4] = IDiamondCut.FacetCut({
-            facetAddress: result.ticketPurchaseFacet,
+            facetAddress: ticketPurchaseFacet,
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: _getTicketPurchaseSelectors()
         });
         
         cuts[5] = IDiamondCut.FacetCut({
-            facetAddress: result.marketplaceFacet,
+            facetAddress: marketplaceFacet,
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: _getMarketplaceSelectors()
         });
         
         cuts[6] = IDiamondCut.FacetCut({
-            facetAddress: result.staffManagementFacet,
+            facetAddress: staffManagementFacet,
             action: IDiamondCut.FacetCutAction.Add,
             functionSelectors: _getStaffManagementSelectors()
         });
 
-        console2.log("\n4. Deploying diamond...");
+        console2.log("\n4. Deploying Diamond...");
         result.diamond = address(new DiamondLummy(deployer, cuts));
         console2.log("Diamond deployed at:", result.diamond);
+
+        console2.log("\n5. Setting up TicketNFT in Diamond...");
+        // Initialize TicketNFT with event contract = Diamond
+        TicketNFT(result.ticketNFT).initialize("Lummy Event Tickets", "LUMMY", result.diamond);
+        console2.log("TicketNFT initialized with Diamond as event contract");
+        
+        // Set TicketNFT in Diamond (factory is deployer initially)
+        EventCoreFacet(result.diamond).setTicketNFT(
+            result.ticketNFT,
+            result.mockIDRX,
+            deployer // Platform fee receiver
+        );
+        console2.log("TicketNFT set in Diamond successfully");
+
+        // Verify setup
+        address nftAddress = EventCoreFacet(result.diamond).getTicketNFT();
+        console2.log("Verification - getTicketNFT():", nftAddress);
+        require(nftAddress == result.ticketNFT, "TicketNFT setup failed");
 
         return result;
     }
 
     // ============================================
-    // CORRECT SELECTOR GENERATION FUNCTIONS  
+    // SELECTOR GENERATION FUNCTIONS  
     // ============================================
 
     function _getDiamondCutSelectors() internal pure returns (bytes4[] memory) {
@@ -151,7 +159,7 @@ contract DeployDiamondFixed is Script {
         selectors[1] = IDiamondLoupe.facetFunctionSelectors.selector;
         selectors[2] = IDiamondLoupe.facetAddresses.selector;
         selectors[3] = IDiamondLoupe.facetAddress.selector;
-        selectors[4] = 0x01ffc9a7; // supportsInterface
+        selectors[4] = 0x01ffc9a7; // supportsInterface(bytes4)
         return selectors;
     }
 
@@ -164,8 +172,6 @@ contract DeployDiamondFixed is Script {
 
     function _getEventCoreSelectors() internal pure returns (bytes4[] memory) {
         bytes4[] memory selectors = new bytes4[](17);
-        
-        // CORRECT selectors from forge inspect EventCoreFacet
         selectors[0] = 0x950c64ba; // addTicketTier(string,uint256,uint256,uint256)
         selectors[1] = 0xfb6c9537; // cancelEvent()
         selectors[2] = 0x6d00fa68; // getEventInfo()
@@ -183,14 +189,11 @@ contract DeployDiamondFixed is Script {
         selectors[14] = 0x48c4ea19; // setTicketNFT(address,address,address)
         selectors[15] = 0x7da0a877; // trustedForwarder()
         selectors[16] = 0xbf3f6450; // updateTicketTier(uint256,string,uint256,uint256,uint256)
-
         return selectors;
     }
 
     function _getTicketPurchaseSelectors() internal pure returns (bytes4[] memory) {
-        bytes4[] memory selectors = new bytes4[](13); // Added mintTicket function
-        
-        // CORRECT selectors from forge inspect TicketPurchaseFacet (without duplicates)
+        bytes4[] memory selectors = new bytes4[](12);
         selectors[0] = 0x70e5deb9; // emergencyRefund(uint256)
         selectors[1] = 0xde165fec; // getOrganizerEscrow(address)
         selectors[2] = 0xac18992c; // getRevenueStats()
@@ -200,21 +203,14 @@ contract DeployDiamondFixed is Script {
         selectors[6] = 0xbdbbb0cb; // purchaseTicket(uint256,uint256)
         selectors[7] = 0x24abf09a; // ticketExists(uint256)
         selectors[8] = 0x23771b86; // withdrawOrganizerFunds()
-        // NEW: Platform fee management functions
         selectors[9] = 0x03cb93cf; // getPlatformFeesBalance()
         selectors[10] = 0x12b26271; // getTotalPlatformFeesCollected()
         selectors[11] = 0xd0b7830b; // withdrawPlatformFees()
-        // CRITICAL: Add missing NFT mint function
-        selectors[12] = 0x4945646e; // mintTicket(address,uint256,uint256,uint256)
-        // Note: isTrustedForwarder & trustedForwarder removed (duplicates with EventCore)
-
         return selectors;
     }
 
     function _getMarketplaceSelectors() internal pure returns (bytes4[] memory) {
-        bytes4[] memory selectors = new bytes4[](12); // Removed duplicates
-        
-        // CORRECT selectors from forge inspect MarketplaceFacet (without duplicates)
+        bytes4[] memory selectors = new bytes4[](12);
         selectors[0] = 0xc42ab7d8; // calculateResaleFees(uint256)
         selectors[1] = 0x38475934; // cancelResaleListing(uint256)
         selectors[2] = 0x87c35bc0; // getActiveListings()
@@ -227,61 +223,39 @@ contract DeployDiamondFixed is Script {
         selectors[9] = 0x6053b0ef; // listTicketForResale(uint256,uint256)
         selectors[10] = 0x3fc4a060; // purchaseResaleTicket(uint256)
         selectors[11] = 0x72b77cba; // updateResaleSettings(bool,bool)
-        // Note: isTrustedForwarder & trustedForwarder removed (duplicates with EventCore)
-
         return selectors;
     }
 
     function _getStaffManagementSelectors() internal pure returns (bytes4[] memory) {
-        bytes4[] memory selectors = new bytes4[](12); // Removed duplicates
-        
-        // CORRECT selectors from forge inspect StaffManagementFacet (without duplicates)
-        selectors[0] = 0x522e4c8a; // addStaff(address)
-        selectors[1] = 0x40399cb7; // addStaffWithRole(address,uint8)
-        selectors[2] = 0x3cf00356; // batchUpdateTicketStatus(uint256[])
-        selectors[3] = 0x032e0868; // getAllStaff()
-        selectors[4] = 0xead00b3a; // getRoleHierarchy()
-        selectors[5] = 0x5594c4d1; // getStaffRole(address)
-        selectors[6] = 0x084940bf; // hasStaffRole(address,uint8)
-        selectors[7] = 0xcb510e97; // isStaff(address)
-        selectors[8] = 0xc4522c92; // removeStaff(address)
-        selectors[9] = 0xa2483c3d; // removeStaffRole(address)
-        selectors[10] = 0x87e6a8c8; // updateTicketStatus(uint256)
-        selectors[11] = 0x054ae7df; // validateTicket(uint256)
-        // Note: isTrustedForwarder & trustedForwarder removed (duplicates with EventCore)
-
+        bytes4[] memory selectors = new bytes4[](9);
+        selectors[0] = 0x40399cb7; // addStaff(address,uint8)
+        selectors[1] = 0xa2483c3d; // checkInAttendee(uint256,string)
+        selectors[2] = 0x522e4c8a; // getAllStaff()
+        selectors[3] = 0xc4522c92; // getRoleHierarchy()
+        selectors[4] = 0x87e6a8c8; // getStaffRole(address)
+        selectors[5] = 0x3cf00356; // getTicketCheckInStatus(uint256)
+        selectors[6] = 0x054ae7df; // removeStaff(address)
+        selectors[7] = 0x5594c4d1; // updateStaffRole(address,uint8)
+        selectors[8] = 0x084940bf; // validateTicket(uint256,string)
         return selectors;
     }
-
-    // ============================================
-    // RESULT PRINTING & VERIFICATION
-    // ============================================
 
     function _printResults(DeploymentResult memory result) internal view {
         console2.log("\n=== DEPLOYMENT COMPLETE ===");
         console2.log("Diamond Address:", result.diamond);
+        console2.log("TicketNFT Address:", result.ticketNFT);
         console2.log("MockIDRX:", result.mockIDRX);
         console2.log("TrustedForwarder:", result.trustedForwarder);
-        console2.log("\n=== TOTAL FUNCTIONS ===");
-        console2.log("- DiamondCut: 1 functions");
-        console2.log("- DiamondLoupe: 5 functions");
-        console2.log("- Ownership: 2 functions");
-        console2.log("- EventCore: 17 functions");
-        console2.log("- TicketPurchase: 12 functions"); // Added 3 platform fee functions
-        console2.log("- Marketplace: 12 functions");
-        console2.log("- StaffManagement: 12 functions");
-        console2.log("TOTAL: 61 unique functions"); // Updated total
-    }
-
-    function _printTestInstructions(DeploymentResult memory result) internal view {
-        console2.log("\n=== TEST INSTRUCTIONS ===");
-        console2.log("1. All missing functions should now be available!");
-        console2.log("\n2. Test previously missing functions:");
-        console2.log("   cast call", result.diamond, "'getTierCount()' --rpc-url $RPC_URL");
-        console2.log("   cast call", result.diamond, "'getRoleHierarchy()' --rpc-url $RPC_URL");
-        console2.log("   cast call", result.diamond, "'getRevenueStats()' --rpc-url $RPC_URL");
-        console2.log("   cast call", result.diamond, "'getActiveListings()' --rpc-url $RPC_URL");
         
-        console2.log("\n3. Block Explorer:", "https://sepolia-blockscout.lisk.com/address/", result.diamond);
+        console2.log("\n=== UPDATE FRONTEND ===");
+        console2.log("Update constants.ts:");
+        console2.log("DiamondLummy:", result.diamond);
+        console2.log("MockIDRX:", result.mockIDRX);
+        console2.log("TrustedForwarder:", result.trustedForwarder);
+        
+        console2.log("\n=== VERIFICATION COMMANDS ===");
+        console2.log("Test TicketNFT connection:");
+        console2.log("cast call", result.diamond, "'getTicketNFT()' --rpc-url https://rpc.sepolia-api.lisk.com");
+        console2.log("Expected result:", result.ticketNFT);
     }
 }
