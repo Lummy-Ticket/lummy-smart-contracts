@@ -12,7 +12,7 @@ library Structs {
         address organizer;
     }
     
-    // Tier tiket
+    // Tier tiket dengan field tambahan
     struct TicketTier {
         string name;
         uint256 price;
@@ -20,6 +20,8 @@ library Structs {
         uint256 sold;
         uint256 maxPerPurchase;
         bool active;
+        string description;     // Deskripsi tier (e.g., "Standard festival access")
+        string benefits;        // JSON array benefits (e.g., '["Priority seating", "Meet & greet"]')
     }
     
     // Aturan resale

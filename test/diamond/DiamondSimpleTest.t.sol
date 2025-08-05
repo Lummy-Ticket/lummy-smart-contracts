@@ -131,7 +131,8 @@ contract DiamondSimpleTest is Test {
             "Testing Diamond Pattern",
             1735689600, // Jan 1, 2025
             "Virtual Venue",
-            "ipfs://test"
+            "ipfs://test",
+            "Technology" // Add category parameter
         );
         
         // Set tokens and receiver (also needs factory permission)
@@ -265,7 +266,7 @@ contract DiamondSimpleTest is Test {
     function testEventInitialization() public view {
         console.log("=== TESTING EVENT INITIALIZATION ===");
         
-        (string memory name, string memory description, uint256 date, string memory venue, address org) = 
+        (string memory name, string memory description, uint256 date, string memory venue, string memory category, address org) = 
             EventCoreFacet(address(diamond)).getEventInfo();
         
         assertEq(name, "Diamond Test Event", "Event name should be correct");
@@ -284,7 +285,9 @@ contract DiamondSimpleTest is Test {
             "General Admission",
             100 * 10**18, // 100 IDRX
             100,
-            5
+            5,
+            "Standard festival access", // description
+            '["Entry to main area", "Basic amenities"]' // benefits
         );
         
         vm.stopPrank();

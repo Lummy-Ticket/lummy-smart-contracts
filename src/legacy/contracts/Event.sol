@@ -295,7 +295,9 @@ contract Event is IEvent, ERC2771Context, ReentrancyGuard, Ownable {
             available: _available,
             sold: 0,
             maxPerPurchase: _maxPerPurchase,
-            active: true
+            active: true,
+            description: "",  // Default empty untuk legacy contract
+            benefits: "[]"    // Default empty array untuk legacy contract
         });
         
         tierCount++;

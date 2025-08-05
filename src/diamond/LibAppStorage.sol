@@ -30,6 +30,7 @@ library LibAppStorage {
         uint256 date;
         string venue;
         string ipfsMetadata;
+        string category;        // Event category: "Music", "Sports", "Technology", dll
         address organizer;
         
         /// @notice Event status flags

@@ -36,20 +36,22 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
     /// @param trustedForwarder Address of trusted forwarder for gasless transactions
     constructor(address trustedForwarder) ERC2771Context(trustedForwarder) {}
 
-    /// @notice Initializes the event contract with basic parameters
+    /// @notice Initializes the event contract with basic parameters (updated dengan category)
     /// @param _organizer Address of the event organizer
     /// @param _name Name of the event
     /// @param _description Description of the event
     /// @param _date Unix timestamp of the event date
     /// @param _venue Venue location of the event
     /// @param _ipfsMetadata IPFS hash containing additional event metadata
+    /// @param _category Event category (e.g., "Music", "Sports", "Technology")
     function initialize(
         address _organizer,
         string memory _name,
         string memory _description,
         uint256 _date,
         string memory _venue,
-        string memory _ipfsMetadata
+        string memory _ipfsMetadata,
+        string memory _category
     ) external {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         if (msg.sender != s.factory) revert OnlyFactoryCanCall();
@@ -60,6 +62,7 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
         s.date = _date;
         s.venue = _venue;
         s.ipfsMetadata = _ipfsMetadata;
+        s.category = _category;  // Set category baru
         s.eventCreatedAt = block.timestamp;
         
         // Set organizer with maximum privileges
@@ -95,16 +98,20 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
         emit TicketNFTSet(_ticketNFT, _idrxToken, _platformFeeReceiver);
     }
 
-    /// @notice Creates a new ticket tier for the event
+    /// @notice Creates a new ticket tier for the event (updated dengan description & benefits)
     /// @param _name Human-readable name for the ticket tier
     /// @param _price Price per ticket in IDRX tokens (wei)
     /// @param _available Total number of tickets available for this tier
     /// @param _maxPerPurchase Maximum tickets one address can buy in single transaction
+    /// @param _description Description of what this tier includes
+    /// @param _benefits JSON string of benefits array (e.g., '["Priority seating", "Meet & greet"]')
     function addTicketTier(
         string memory _name,
         uint256 _price,
         uint256 _available,
-        uint256 _maxPerPurchase
+        uint256 _maxPerPurchase,
+        string memory _description,
+        string memory _benefits
     ) external {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         if (_msgSender() != s.organizer) revert OnlyOrganizerCanCall();
@@ -121,7 +128,9 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
             available: _available,
             sold: 0,
             maxPerPurchase: _maxPerPurchase,
-            active: true
+            active: true,
+            description: _description,  // Field baru
+            benefits: _benefits         // Field baru
         });
         
         s.tierCount++;
@@ -129,18 +138,22 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
         emit TicketTierAdded(tierId, _name, _price);
     }
 
-    /// @notice Updates an existing ticket tier configuration
+    /// @notice Updates an existing ticket tier configuration (updated dengan field baru)
     /// @param _tierId ID of the tier to update
     /// @param _name New name for the ticket tier
     /// @param _price New price per ticket in IDRX tokens (wei)
     /// @param _available New total number of available tickets
     /// @param _maxPerPurchase New maximum tickets per transaction
+    /// @param _description New description for the tier
+    /// @param _benefits New benefits JSON string
     function updateTicketTier(
         uint256 _tierId,
         string memory _name,
         uint256 _price,
         uint256 _available,
-        uint256 _maxPerPurchase
+        uint256 _maxPerPurchase,
+        string memory _description,
+        string memory _benefits
     ) external {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         if (_msgSender() != s.organizer) revert OnlyOrganizerCanCall();
@@ -157,6 +170,8 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
         tier.price = _price;
         tier.available = _available;
         tier.maxPerPurchase = _maxPerPurchase;
+        tier.description = _description;  // Update field baru
+        tier.benefits = _benefits;        // Update field baru
         
         emit TicketTierUpdated(_tierId, _name, _price, _available);
     }
@@ -221,6 +236,21 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
         emit EventCompleted();
     }
 
+    /// @notice Clears all ticket tiers (untuk reset sebelum buat event baru)
+    /// @dev Fungsi ini penting untuk fix masalah "Tier code too large" karena tierCount ga pernah reset
+    function clearAllTiers() external {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        if (_msgSender() != s.organizer) revert OnlyOrganizerCanCall();
+        
+        // Hapus semua tier data dan reset counter
+        for (uint256 i = 0; i < s.tierCount; i++) {
+            delete s.ticketTiers[i];
+        }
+        s.tierCount = 0;
+        
+        emit TiersCleared();
+    }
+
     /// @notice Gets the address of the associated TicketNFT contract
     /// @return Address of the TicketNFT contract
     function getTicketNFT() external view returns (address) {
@@ -228,21 +258,23 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
         return address(s.ticketNFT);
     }
 
-    /// @notice Gets basic event information
+    /// @notice Gets basic event information (updated dengan category)
     /// @return name Event name
     /// @return description Event description
     /// @return date Event date timestamp
     /// @return venue Event venue
+    /// @return category Event category
     /// @return organizer Event organizer address
     function getEventInfo() external view returns (
         string memory name,
         string memory description,
         uint256 date,
         string memory venue,
+        string memory category,
         address organizer
     ) {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-        return (s.name, s.description, s.date, s.venue, s.organizer);
+        return (s.name, s.description, s.date, s.venue, s.category, s.organizer);
     }
 
     /// @notice Gets event status flags
@@ -279,6 +311,13 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
         return s.resaleRules;
     }
 
+    /// @notice Gets IPFS metadata hash for the event (untuk NFT image generation)
+    /// @return IPFS hash string
+    function getIPFSMetadata() external view returns (string memory) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return s.ipfsMetadata;
+    }
+
     /// @notice ERC2771 context override for meta-transactions
     function _msgSender() internal view override returns (address) {
         return ERC2771Context._msgSender();
@@ -303,4 +342,5 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
     event ResaleRulesUpdated(uint256 maxMarkupPercentage, uint256 organizerFeePercentage);
     event EventCancelled();
     event EventCompleted();
+    event TiersCleared(); // Event untuk track kapan tier di-reset
 }

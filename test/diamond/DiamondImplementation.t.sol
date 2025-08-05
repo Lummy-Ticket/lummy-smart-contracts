@@ -123,7 +123,7 @@ contract DiamondImplementationTest is Test {
         vm.startPrank(owner);
         
         // Test getEventInfo through diamond - should return empty initially
-        (string memory name, string memory description, uint256 date, string memory venue, address orgAddr) = 
+        (string memory name, string memory description, uint256 date, string memory venue, string memory category, address orgAddr) = 
             EventCoreFacet(address(diamond)).getEventInfo();
         
         // Initially should be empty

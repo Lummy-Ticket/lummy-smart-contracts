@@ -171,24 +171,26 @@ contract DeployComplete is Script {
     }
 
     function _getEventCoreSelectors() internal pure returns (bytes4[] memory) {
-        bytes4[] memory selectors = new bytes4[](17);
-        selectors[0] = 0x950c64ba; // addTicketTier(string,uint256,uint256,uint256)
+        bytes4[] memory selectors = new bytes4[](19);
+        selectors[0] = 0x65f0a422; // addTicketTier(string,uint256,uint256,uint256,string,string) - UPDATED
         selectors[1] = 0xfb6c9537; // cancelEvent()
-        selectors[2] = 0x6d00fa68; // getEventInfo()
-        selectors[3] = 0xb75b25ec; // getEventStatus()
-        selectors[4] = 0x9229b919; // getResaleRules()
-        selectors[5] = 0x35882e7e; // getTicketNFT()
-        selectors[6] = 0x01fe9913; // getTicketTier(uint256)
-        selectors[7] = 0x67184e28; // getTierCount()
-        selectors[8] = 0x09a31ea0; // initialize(address,string,string,uint256,string,string)
-        selectors[9] = 0x572b6c05; // isTrustedForwarder(address)
-        selectors[10] = 0x45298e51; // lockAlgorithm()
-        selectors[11] = 0xf191830b; // markEventCompleted()
-        selectors[12] = 0x60391df9; // setAlgorithm1(bool,uint256)
-        selectors[13] = 0xa1711628; // setResaleRules(uint256,uint256,bool,uint256)
-        selectors[14] = 0x48c4ea19; // setTicketNFT(address,address,address)
-        selectors[15] = 0x7da0a877; // trustedForwarder()
-        selectors[16] = 0xbf3f6450; // updateTicketTier(uint256,string,uint256,uint256,uint256)
+        selectors[2] = 0x363053a5; // clearAllTiers() - NEW FUNCTION
+        selectors[3] = 0x6d00fa68; // getEventInfo()
+        selectors[4] = 0xb75b25ec; // getEventStatus()
+        selectors[5] = 0xc58241cc; // getIPFSMetadata() - NEW FUNCTION  
+        selectors[6] = 0x9229b919; // getResaleRules()
+        selectors[7] = 0x35882e7e; // getTicketNFT()
+        selectors[8] = 0x01fe9913; // getTicketTier(uint256)
+        selectors[9] = 0x67184e28; // getTierCount()
+        selectors[10] = 0x10c22216; // initialize(address,string,string,uint256,string,string,string) - UPDATED
+        selectors[11] = 0x572b6c05; // isTrustedForwarder(address)
+        selectors[12] = 0x45298e51; // lockAlgorithm()
+        selectors[13] = 0xf191830b; // markEventCompleted()
+        selectors[14] = 0x60391df9; // setAlgorithm1(bool,uint256)
+        selectors[15] = 0xa1711628; // setResaleRules(uint256,uint256,bool,uint256)
+        selectors[16] = 0x48c4ea19; // setTicketNFT(address,address,address)
+        selectors[17] = 0x7da0a877; // trustedForwarder()
+        selectors[18] = 0x66ec5a57; // updateTicketTier(uint256,string,uint256,uint256,uint256,string,string) - UPDATED
         return selectors;
     }
 

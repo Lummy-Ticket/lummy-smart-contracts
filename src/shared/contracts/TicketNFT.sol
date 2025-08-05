@@ -11,7 +11,22 @@ import {IERC721} from "@openzeppelin/token/ERC721/IERC721.sol";
 import {IERC165} from "@openzeppelin/utils/introspection/IERC165.sol";
 import "src/shared/libraries/Structs.sol";
 import "src/shared/libraries/Constants.sol";
+import "src/shared/libraries/Base64.sol";
+import "src/shared/libraries/Strings.sol";
 import "src/shared/interfaces/ITicketNFT.sol";
+
+/// @notice Interface untuk get event info dari Diamond contract
+interface IEventInfo {
+    function getEventInfo() external view returns (
+        string memory name,
+        string memory description,
+        uint256 date,
+        string memory venue,
+        string memory category,
+        address organizer
+    );
+    function getIPFSMetadata() external view returns (string memory);
+}
 
 /**
  * @dev Gas-efficient custom errors for TicketNFT operations
@@ -35,6 +50,8 @@ error InvalidTimestamp();
  * @custom:standard ERC-721, ERC-2771
  */
 contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGuard, Ownable {
+    using Strings for uint256;
+    using Base64 for bytes;
     
     /* ========== STATE VARIABLES ========== */
     
@@ -316,6 +333,9 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
         string memory oldStatus = ticketStatus[tokenId];
         ticketStatus[tokenId] = newStatus;
         
+        // Update metadata status field juga (untuk OpenSea traits)
+        ticketMetadata[tokenId].status = newStatus;
+        
         if (keccak256(bytes(newStatus)) == keccak256(bytes("used"))) {
             ticketMetadata[tokenId].used = true;
         }
@@ -412,12 +432,92 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
     }
     
     /**
-     * @dev Generates base64 encoded JSON metadata for OpenSea
+     * @dev Generates base64 encoded JSON metadata for OpenSea dengan dynamic content
      */
-    function _generateBase64JSON(uint256 tokenId, Structs.TicketMetadata memory metadata) internal pure returns (string memory) {
-        // Simplified implementation - in production, this would generate proper base64 encoded JSON
-        // with OpenSea traits format
-        return "eyJuYW1lIjoiVGlja2V0ICMxIiwiZGVzY3JpcHRpb24iOiJMdW1teSBQcm90b2NvbCBUaWNrZXQifQ==";
+    function _generateBase64JSON(uint256 tokenId, Structs.TicketMetadata memory metadata) internal view returns (string memory) {
+        // Generate image URL dari event IPFS hash (atau default)
+        string memory imageUrl = _generateImageURL(metadata);
+        
+        // Generate OpenSea traits
+        string memory traits = _generateTraitsArray(metadata);
+        
+        // Create complete JSON metadata
+        string memory json = string(abi.encodePacked(
+            '{"name":"Lummy Ticket #', tokenId.toString(), '",',
+            '"description":"', _escapeJSON(metadata.eventName), ' - ', _escapeJSON(metadata.tierName), '",',
+            '"image":"', imageUrl, '",',
+            '"external_url":"https://lummy.app/ticket/', tokenId.toString(), '",',
+            '"attributes":', traits,
+            '}'
+        ));
+        
+        // Encode to base64
+        return Base64.encode(bytes(json));
+    }
+
+    /**
+     * @dev Generates image URL untuk NFT (menggunakan event image dari IPFS)
+     */
+    function _generateImageURL(Structs.TicketMetadata memory metadata) internal view returns (string memory) {
+        // Try to get IPFS hash dari event contract
+        try IEventInfo(eventContract).getIPFSMetadata() returns (string memory ipfsHash) {
+            if (bytes(ipfsHash).length > 0) {
+                // Return IPFS URL
+                return string(abi.encodePacked("https://gateway.pinata.cloud/ipfs/", ipfsHash));
+            }
+        } catch {
+            // If failed to get from contract, use placeholder
+        }
+        
+        // Fallback: placeholder image dengan unique identifier
+        return string(abi.encodePacked(
+            "https://api.lummy.io/nft/placeholder/",
+            metadata.eventId.toString(),
+            "/",
+            metadata.tierId.toString(),
+            "/",
+            metadata.status
+        ));
+    }
+
+    /**
+     * @dev Generates OpenSea traits array untuk rich metadata
+     */
+    function _generateTraitsArray(Structs.TicketMetadata memory metadata) internal pure returns (string memory) {
+        return string(abi.encodePacked(
+            '[',
+            '{"trait_type":"Event","value":"', _escapeJSON(metadata.eventName), '"},',
+            '{"trait_type":"Venue","value":"', _escapeJSON(metadata.eventVenue), '"},',
+            '{"trait_type":"Date","value":"', _formatDate(metadata.eventDate), '"},',
+            '{"trait_type":"Tier","value":"', _escapeJSON(metadata.tierName), '"},',
+            '{"trait_type":"Status","value":"', metadata.status, '"},',
+            '{"trait_type":"Original Price","value":"', metadata.originalPrice.toString(), ' IDRX"},',
+            '{"trait_type":"Serial Number","value":"', metadata.serialNumber.toString(), '"},',
+            '{"trait_type":"Organizer","value":"', _escapeJSON(metadata.organizerName), '"},',
+            '{"trait_type":"Transfer Count","value":"', metadata.transferCount.toString(), '"}',
+            ']'
+        ));
+    }
+
+    /**
+     * @dev Format timestamp ke readable date
+     */
+    function _formatDate(uint256 timestamp) internal pure returns (string memory) {
+        if (timestamp == 0) return "TBD";
+        // Simplified: return timestamp. Dalam production bisa implement proper date formatting
+        return timestamp.toString();
+    }
+
+    /**
+     * @dev Escape JSON special characters (basic implementation)
+     */
+    function _escapeJSON(string memory str) internal pure returns (string memory) {
+        // Basic implementation - dalam production perlu handle semua JSON escape chars
+        bytes memory strBytes = bytes(str);
+        if (strBytes.length == 0) return "";
+        
+        // Untuk sementara, return as is. Production implementation perlu escape ", \, dll
+        return str;
     }
     
     /* ========== ERC2771 CONTEXT OVERRIDES ========== */
