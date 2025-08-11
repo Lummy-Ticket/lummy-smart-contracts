@@ -40,6 +40,14 @@ interface ITicketNFT is IERC721 {
     // Algorithm 1 functions
     function updateStatus(uint256 tokenId, string memory newStatus) external;
     function getTicketStatus(uint256 tokenId) external view returns (string memory);
+    function setEnhancedMetadata(
+        uint256 tokenId,
+        string memory eventName,
+        string memory eventVenue,
+        uint256 eventDate,
+        string memory tierName,
+        string memory organizerName
+    ) external;
     
     // We don't need to redeclare these methods from IERC721:
     // - transferFrom(address from, address to, uint256 tokenId)

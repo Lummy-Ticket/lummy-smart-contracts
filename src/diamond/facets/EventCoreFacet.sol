@@ -56,13 +56,20 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         if (msg.sender != s.factory) revert OnlyFactoryCanCall();
         
+        // NEW: Check if already initialized to prevent storage corruption
+        require(bytes(s.name).length == 0, "Event already initialized");
+        
+        // NEW: Clear any existing tier data to prevent corruption
+        _clearAllEventData(s);
+        
+        // Initialize event data
         s.organizer = _organizer;
         s.name = _name;
         s.description = _description;
         s.date = _date;
         s.venue = _venue;
         s.ipfsMetadata = _ipfsMetadata;
-        s.category = _category;  // Set category baru
+        s.category = _category;
         s.eventCreatedAt = block.timestamp;
         
         // Set organizer with maximum privileges
@@ -331,6 +338,30 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
     /// @notice ERC2771 context override for meta-transactions
     function _contextSuffixLength() internal view virtual override returns (uint256) {
         return ERC2771Context._contextSuffixLength();
+    }
+
+    /// @notice Internal function to clear all event data for clean initialization
+    /// @param s AppStorage reference
+    function _clearAllEventData(LibAppStorage.AppStorage storage s) internal {
+        // Clear all tier data
+        for (uint256 i = 0; i < s.tierCount; i++) {
+            delete s.ticketTiers[i];
+            delete s.tierSalesCount[i];
+        }
+        s.tierCount = 0;
+        
+        // Reset event flags
+        s.cancelled = false;
+        s.eventCompleted = false;
+        
+        // Clear revenue tracking
+        s.totalRevenue = 0;
+        s.totalRefunds = 0;
+        s.platformFeesCollected = 0;
+        s.platformFeesWithdrawn = 0;
+        
+        // Note: We don't clear s.organizer, s.name etc here as they will be set immediately after
+        // Note: We don't clear staff roles as organizer will be set again with MANAGER role
     }
 
     // Events

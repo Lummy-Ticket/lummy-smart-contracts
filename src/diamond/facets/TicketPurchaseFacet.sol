@@ -88,10 +88,27 @@ contract TicketPurchaseFacet is ReentrancyGuard, ERC2771Context {
         // Add remaining amount to organizer escrow (93% of ticket price)
         s.organizerEscrow[s.organizer] += escrowAmount;
         
+        // Cache values to avoid stack too deep error
+        string memory eventName = s.name;
+        string memory eventVenue = s.venue;
+        uint256 eventDate = s.date;
+        string memory organizerName = _addressToString(s.organizer);
+        
         // Mint NFT tickets with deterministic Algorithm 1 token IDs
         for (uint256 i = 0; i < _quantity; i++) {
             uint256 tokenId = _generateTokenId(s.eventId, _tierId, tier.sold + i + 1);
             s.ticketNFT.mintTicket(_msgSender(), tokenId, _tierId, tier.price);
+            
+            // NEW: Auto-populate enhanced metadata immediately after minting
+            s.ticketNFT.setEnhancedMetadata(
+                tokenId,
+                eventName,        // eventName
+                eventVenue,       // eventVenue  
+                eventDate,        // eventDate
+                tier.name,        // tierName
+                organizerName     // organizerName
+            );
+            
             s.ticketExists[tokenId] = true;
         }
     }
@@ -269,6 +286,22 @@ contract TicketPurchaseFacet is ReentrancyGuard, ERC2771Context {
     /// @notice ERC2771 context override for meta-transactions
     function _contextSuffixLength() internal view virtual override returns (uint256) {
         return ERC2771Context._contextSuffixLength();
+    }
+
+    /// @notice Converts an address to its string representation
+    /// @param addr Address to convert
+    /// @return String representation of the address
+    function _addressToString(address addr) internal pure returns (string memory) {
+        bytes32 value = bytes32(uint256(uint160(addr)));
+        bytes memory alphabet = "0123456789abcdef";
+        bytes memory str = new bytes(42);
+        str[0] = '0';
+        str[1] = 'x';
+        for (uint256 i = 0; i < 20; i++) {
+            str[2 + i * 2] = alphabet[uint8(value[i + 12] >> 4)];
+            str[3 + i * 2] = alphabet[uint8(value[i + 12] & 0x0f)];
+        }
+        return string(str);
     }
 
     // Events
