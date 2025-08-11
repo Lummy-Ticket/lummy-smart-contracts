@@ -109,6 +109,9 @@ contract TicketPurchaseFacet is ReentrancyGuard, ERC2771Context {
                 organizerName     // organizerName
             );
             
+            // NEW: Phase 1.3 - Track attendee efficiently (replaces 5000+ contract call discovery)
+            _trackNewAttendee(s, _msgSender(), tokenId);
+            
             s.ticketExists[tokenId] = true;
         }
     }
@@ -302,6 +305,27 @@ contract TicketPurchaseFacet is ReentrancyGuard, ERC2771Context {
             str[3 + i * 2] = alphabet[uint8(value[i + 12] & 0x0f)];
         }
         return string(str);
+    }
+
+    /// @notice Internal function to track new attendee efficiently (Phase 1.3)
+    /// @param s AppStorage reference
+    /// @param attendee Address of the new attendee
+    /// @param tokenId Token ID that was minted for this attendee
+    function _trackNewAttendee(LibAppStorage.AppStorage storage s, address attendee, uint256 tokenId) internal {
+        // Add token to user's token array
+        s.userTokenIds[attendee].push(tokenId);
+        
+        // Track token ownership
+        s.tokenIdToOwner[tokenId] = attendee;
+        
+        // If first-time attendee, add to attendee list
+        if (!s.isAttendee[attendee]) {
+            s.isAttendee[attendee] = true;
+            s.attendeeList.push(attendee);
+        }
+        
+        // Increment total minted tokens counter
+        s.totalMintedTokens++;
     }
 
     // Events

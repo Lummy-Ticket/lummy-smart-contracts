@@ -446,7 +446,7 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
             '{"name":"Lummy Ticket #', tokenId.toString(), '",',
             '"description":"', _escapeJSON(metadata.eventName), ' - ', _escapeJSON(metadata.tierName), '",',
             '"image":"', imageUrl, '",',
-            '"external_url":"https://lummy.app/ticket/', tokenId.toString(), '",',
+            '"external_url":"https://lummy-ticket.vercel.app/ticket/', tokenId.toString(), '",',
             '"attributes":', traits,
             '}'
         ));

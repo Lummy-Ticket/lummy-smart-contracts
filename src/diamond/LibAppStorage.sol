@@ -105,9 +105,17 @@ library LibAppStorage {
         uint256 ticketSalesEndAt;                       // Ticket sales end time
         bool ticketSalesActive;                         // Ticket sales status
         
+        // ========== EFFICIENT ATTENDEE MANAGEMENT (Phase 1.3) ==========
+        /// @notice Efficient tracking of attendees and their tokens
+        mapping(address => uint256[]) userTokenIds;     // User -> array of token IDs they own
+        mapping(uint256 => address) tokenIdToOwner;     // Token ID -> current owner
+        address[] attendeeList;                         // Array of all attendees (for getAllAttendees)
+        mapping(address => bool) isAttendee;           // Quick check if address is attendee
+        uint256 totalMintedTokens;                     // Total tokens minted for this event
+        
         // ========== RESERVED STORAGE ==========
-        /// @notice Reserved storage slots for future upgrades (32 slots)
-        uint256[32] __gap;
+        /// @notice Reserved storage slots for future upgrades (27 slots - used 5 for attendee management)
+        uint256[27] __gap;
     }
 
     /// @notice Gets the application storage struct

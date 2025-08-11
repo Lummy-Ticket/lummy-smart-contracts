@@ -325,6 +325,39 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
         return s.ipfsMetadata;
     }
 
+    // ========== PHASE 1.3: EFFICIENT ATTENDEE MANAGEMENT ==========
+    
+    /// @notice Gets all token IDs owned by a specific attendee (EFFICIENT - replaces 5000+ calls)
+    /// @param attendee Address of the attendee
+    /// @return tokenIds Array of token IDs owned by the attendee
+    function getAttendeeTokens(address attendee) external view returns (uint256[] memory tokenIds) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return s.userTokenIds[attendee];
+    }
+    
+    /// @notice Gets all attendees for this event (EFFICIENT - single call)
+    /// @return attendees Array of all attendee addresses
+    function getAllAttendees() external view returns (address[] memory attendees) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return s.attendeeList;
+    }
+    
+    /// @notice Gets attendee statistics
+    /// @return totalAttendees Total number of unique attendees
+    /// @return totalTokensMinted Total tokens minted for this event
+    function getAttendeeStats() external view returns (uint256 totalAttendees, uint256 totalTokensMinted) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return (s.attendeeList.length, s.totalMintedTokens);
+    }
+    
+    /// @notice Checks if an address is an attendee (EFFICIENT - O(1) lookup)
+    /// @param attendee Address to check
+    /// @return true if address has purchased tickets
+    function isEventAttendee(address attendee) external view returns (bool) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return s.isAttendee[attendee];
+    }
+
     /// @notice ERC2771 context override for meta-transactions
     function _msgSender() internal view override returns (address) {
         return ERC2771Context._msgSender();
@@ -359,6 +392,15 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
         s.totalRefunds = 0;
         s.platformFeesCollected = 0;
         s.platformFeesWithdrawn = 0;
+        
+        // NEW: Clear attendee tracking data (Phase 1.3)
+        for (uint256 i = 0; i < s.attendeeList.length; i++) {
+            address attendee = s.attendeeList[i];
+            delete s.userTokenIds[attendee];
+            delete s.isAttendee[attendee];
+        }
+        delete s.attendeeList;
+        s.totalMintedTokens = 0;
         
         // Note: We don't clear s.organizer, s.name etc here as they will be set immediately after
         // Note: We don't clear staff roles as organizer will be set again with MANAGER role
