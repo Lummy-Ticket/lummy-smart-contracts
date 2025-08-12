@@ -483,12 +483,16 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
     /**
      * @dev Generates OpenSea traits array untuk rich metadata
      */
-    function _generateTraitsArray(Structs.TicketMetadata memory metadata) internal pure returns (string memory) {
+    function _generateTraitsArray(Structs.TicketMetadata memory metadata) internal view returns (string memory) {
+        // Get event category from the Diamond contract
+        string memory eventCategory = _getEventCategory();
+        
         return string(abi.encodePacked(
             '[',
             '{"trait_type":"Event","value":"', _escapeJSON(metadata.eventName), '"},',
             '{"trait_type":"Venue","value":"', _escapeJSON(metadata.eventVenue), '"},',
             '{"trait_type":"Date","value":"', _formatDate(metadata.eventDate), '"},',
+            '{"trait_type":"Category","value":"', _escapeJSON(eventCategory), '"},',
             '{"trait_type":"Tier","value":"', _escapeJSON(metadata.tierName), '"},',
             '{"trait_type":"Status","value":"', metadata.status, '"},',
             '{"trait_type":"Original Price","value":"', metadata.originalPrice.toString(), ' IDRX"},',
@@ -497,6 +501,24 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
             '{"trait_type":"Transfer Count","value":"', metadata.transferCount.toString(), '"}',
             ']'
         ));
+    }
+
+    /**
+     * @dev Get event category from Diamond contract (Phase 1 - Enhanced Traits)
+     */
+    function _getEventCategory() internal view returns (string memory) {
+        try IEventInfo(eventContract).getEventInfo() returns (
+            string memory,
+            string memory,
+            uint256,
+            string memory,
+            string memory category,
+            address
+        ) {
+            return category;
+        } catch {
+            return "General"; // Fallback category
+        }
     }
 
     /**

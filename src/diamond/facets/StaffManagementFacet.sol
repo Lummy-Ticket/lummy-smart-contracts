@@ -34,8 +34,11 @@ contract StaffManagementFacet is ReentrancyGuard, ERC2771Context {
     function addStaffWithRole(address staff, LibAppStorage.StaffRole role) external {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         
-        // Check minimum privilege level (MANAGER can assign roles)
-        if (s.staffRoles[_msgSender()] < LibAppStorage.StaffRole.MANAGER) {
+        // Organizer can assign any role, or MANAGER can assign roles
+        bool isOrganizer = (_msgSender() == s.organizer);
+        bool hasManagerRole = (s.staffRoles[_msgSender()] >= LibAppStorage.StaffRole.MANAGER);
+        
+        if (!isOrganizer && !hasManagerRole) {
             revert InsufficientStaffPrivileges();
         }
         
@@ -58,8 +61,11 @@ contract StaffManagementFacet is ReentrancyGuard, ERC2771Context {
     function removeStaffRole(address staff) external {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         
-        // Check minimum privilege level (MANAGER can remove roles)
-        if (s.staffRoles[_msgSender()] < LibAppStorage.StaffRole.MANAGER) {
+        // Organizer can remove any role, or MANAGER can remove roles
+        bool isOrganizer = (_msgSender() == s.organizer);
+        bool hasManagerRole = (s.staffRoles[_msgSender()] >= LibAppStorage.StaffRole.MANAGER);
+        
+        if (!isOrganizer && !hasManagerRole) {
             revert InsufficientStaffPrivileges();
         }
         

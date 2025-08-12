@@ -327,36 +327,6 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
 
     // ========== PHASE 1.3: EFFICIENT ATTENDEE MANAGEMENT ==========
     
-    /// @notice Gets all token IDs owned by a specific attendee (EFFICIENT - replaces 5000+ calls)
-    /// @param attendee Address of the attendee
-    /// @return tokenIds Array of token IDs owned by the attendee
-    function getAttendeeTokens(address attendee) external view returns (uint256[] memory tokenIds) {
-        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-        return s.userTokenIds[attendee];
-    }
-    
-    /// @notice Gets all attendees for this event (EFFICIENT - single call)
-    /// @return attendees Array of all attendee addresses
-    function getAllAttendees() external view returns (address[] memory attendees) {
-        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-        return s.attendeeList;
-    }
-    
-    /// @notice Gets attendee statistics
-    /// @return totalAttendees Total number of unique attendees
-    /// @return totalTokensMinted Total tokens minted for this event
-    function getAttendeeStats() external view returns (uint256 totalAttendees, uint256 totalTokensMinted) {
-        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-        return (s.attendeeList.length, s.totalMintedTokens);
-    }
-    
-    /// @notice Checks if an address is an attendee (EFFICIENT - O(1) lookup)
-    /// @param attendee Address to check
-    /// @return true if address has purchased tickets
-    function isEventAttendee(address attendee) external view returns (bool) {
-        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-        return s.isAttendee[attendee];
-    }
 
     /// @notice ERC2771 context override for meta-transactions
     function _msgSender() internal view override returns (address) {
@@ -404,6 +374,79 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
         
         // Note: We don't clear s.organizer, s.name etc here as they will be set immediately after
         // Note: We don't clear staff roles as organizer will be set again with MANAGER role
+    }
+
+    // ========== PHASE 1.3: EFFICIENT ATTENDEE MANAGEMENT FUNCTIONS ==========
+
+    /**
+     * @notice Get all token IDs owned by a specific attendee (Phase 1.3 - EFFICIENT!)
+     * @dev Replaces 5000+ contract calls with single call
+     * @param attendee Address of the attendee
+     * @return tokenIds Array of token IDs owned by the attendee
+     */
+    function getAttendeeTokens(address attendee) external view returns (uint256[] memory tokenIds) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return s.userTokenIds[attendee];
+    }
+
+    /**
+     * @notice Get all event attendees (Phase 1.3 - ORGANIZER DASHBOARD)
+     * @dev Single call to get all attendee addresses
+     * @return attendees Array of all attendee addresses
+     */
+    function getAllAttendees() external view returns (address[] memory attendees) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return s.attendeeList;
+    }
+
+    /**
+     * @notice Get real-time attendee statistics (Phase 1.3 - ANALYTICS)
+     * @dev Instant analytics for organizer dashboard
+     * @return totalAttendees Total number of unique attendees
+     * @return totalTokensMinted Total number of tickets minted
+     */
+    function getAttendeeStats() external view returns (uint256 totalAttendees, uint256 totalTokensMinted) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        totalAttendees = s.attendeeList.length;
+        totalTokensMinted = s.totalMintedTokens;
+    }
+
+    /**
+     * @notice Check if address is an event attendee (Phase 1.3 - O(1) LOOKUP)
+     * @dev Instant attendee verification for staff/access control
+     * @param attendee Address to check
+     * @return isAttendee True if address has purchased tickets
+     */
+    function isEventAttendee(address attendee) external view returns (bool) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return s.isAttendee[attendee];
+    }
+
+    /**
+     * @notice Get comprehensive event analytics (Phase 1.3 - ORGANIZER INSIGHTS)
+     * @dev Real-time event statistics for professional dashboard
+     * @return totalTicketsSold Total tickets sold across all tiers
+     * @return totalRevenue Total revenue generated (in IDRX wei)
+     * @return uniqueAttendees Number of unique attendees
+     * @return tierSalesCount Array of tickets sold per tier
+     */
+    function getEventAnalytics() external view returns (
+        uint256 totalTicketsSold,
+        uint256 totalRevenue,
+        uint256 uniqueAttendees,
+        uint256[] memory tierSalesCount
+    ) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        
+        totalRevenue = s.totalRevenue;
+        uniqueAttendees = s.attendeeList.length;
+        
+        // Calculate total tickets sold and prepare tier sales array
+        tierSalesCount = new uint256[](s.tierCount);
+        for (uint256 i = 0; i < s.tierCount; i++) {
+            tierSalesCount[i] = s.tierSalesCount[i];
+            totalTicketsSold += s.ticketTiers[i].sold;
+        }
     }
 
     // Events
