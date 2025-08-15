@@ -7,7 +7,7 @@ import {ERC20} from "@openzeppelin/token/ERC20/ERC20.sol";
 
 contract MockIDRX is ERC20 {
     constructor() ERC20("Indonesian Rupiah X", "IDRX") {
-        _mint(msg.sender, 1000000000 * 10**18); // 1B tokens
+        _mint(msg.sender, 1000000 * 10**18); // 1B tokens
     }
     
     function mint(address to, uint256 amount) public {
