@@ -113,9 +113,14 @@ library LibAppStorage {
         mapping(address => bool) isAttendee;           // Quick check if address is attendee
         uint256 totalMintedTokens;                     // Total tokens minted for this event
         
+        // ========== NFT TIER IMAGES (Phase 2) ==========
+        /// @notice Tier-specific NFT background images for dynamic metadata
+        mapping(uint256 => string) tierImageHashes;    // tierIndex -> IPFS hash of tier background image
+        uint256 tierImageCount;                        // Number of tier images stored
+        
         // ========== RESERVED STORAGE ==========
-        /// @notice Reserved storage slots for future upgrades (27 slots - used 5 for attendee management)
-        uint256[27] __gap;
+        /// @notice Reserved storage slots for future upgrades (25 slots - used 7 for attendee management + tier images)
+        uint256[25] __gap;
     }
 
     /// @notice Gets the application storage struct

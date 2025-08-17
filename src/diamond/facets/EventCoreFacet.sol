@@ -325,6 +325,74 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
         return s.ipfsMetadata;
     }
 
+    // ========== PHASE 2: NFT TIER IMAGE MANAGEMENT ==========
+
+    /// @notice Sets tier-specific NFT background images during event initialization
+    /// @param tierImageHashes Array of IPFS hashes for tier background images
+    function setTierImages(string[] memory tierImageHashes) external {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        require(msg.sender == s.organizer, "Only organizer can call");
+        
+        // Clear existing tier images
+        for (uint256 i = 0; i < s.tierImageCount; i++) {
+            delete s.tierImageHashes[i];
+        }
+        
+        // Set new tier images
+        for (uint256 i = 0; i < tierImageHashes.length; i++) {
+            s.tierImageHashes[i] = tierImageHashes[i];
+        }
+        s.tierImageCount = tierImageHashes.length;
+        
+        emit TierImagesUpdated(tierImageHashes.length);
+    }
+
+    /// @notice Sets a single tier image hash
+    /// @param tierIndex Index of the tier (0-based)
+    /// @param imageHash IPFS hash of the tier background image
+    function setTierImageHash(uint256 tierIndex, string memory imageHash) external {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        require(msg.sender == s.organizer, "Only organizer can call");
+        require(tierIndex < s.tierCount, "Tier index out of bounds");
+        
+        s.tierImageHashes[tierIndex] = imageHash;
+        
+        // Update count if this is a new tier image
+        if (tierIndex >= s.tierImageCount) {
+            s.tierImageCount = tierIndex + 1;
+        }
+        
+        emit TierImageUpdated(tierIndex, imageHash);
+    }
+
+    /// @notice Gets tier-specific NFT background image hash
+    /// @param tierIndex Index of the tier (0-based)
+    /// @return IPFS hash of the tier background image
+    function getTierImageHash(uint256 tierIndex) external view returns (string memory) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return s.tierImageHashes[tierIndex];
+    }
+
+    /// @notice Gets all tier image hashes for the event
+    /// @return Array of IPFS hashes for all tier background images
+    function getAllTierImageHashes() external view returns (string[] memory) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        string[] memory hashes = new string[](s.tierImageCount);
+        
+        for (uint256 i = 0; i < s.tierImageCount; i++) {
+            hashes[i] = s.tierImageHashes[i];
+        }
+        
+        return hashes;
+    }
+
+    /// @notice Gets the number of tier images stored
+    /// @return Number of tier images
+    function getTierImageCount() external view returns (uint256) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return s.tierImageCount;
+    }
+
     // ========== PHASE 1.3: EFFICIENT ATTENDEE MANAGEMENT ==========
     
 
@@ -459,4 +527,8 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
     event EventCancelled();
     event EventCompleted();
     event TiersCleared(); // Event untuk track kapan tier di-reset
+    
+    // Phase 2: NFT Tier Image Events
+    event TierImagesUpdated(uint256 tierImageCount);
+    event TierImageUpdated(uint256 indexed tierIndex, string imageHash);
 }

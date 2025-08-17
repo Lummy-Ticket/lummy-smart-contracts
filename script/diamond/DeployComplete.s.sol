@@ -171,7 +171,7 @@ contract DeployComplete is Script {
     }
 
     function _getEventCoreSelectors() internal pure returns (bytes4[] memory) {
-        bytes4[] memory selectors = new bytes4[](19);
+        bytes4[] memory selectors = new bytes4[](24); // Updated from 19 to 24
         selectors[0] = 0x65f0a422; // addTicketTier(string,uint256,uint256,uint256,string,string) - UPDATED
         selectors[1] = 0xfb6c9537; // cancelEvent()
         selectors[2] = 0x363053a5; // clearAllTiers() - NEW FUNCTION
@@ -191,6 +191,12 @@ contract DeployComplete is Script {
         selectors[16] = 0x48c4ea19; // setTicketNFT(address,address,address)
         selectors[17] = 0x7da0a877; // trustedForwarder()
         selectors[18] = 0x66ec5a57; // updateTicketTier(uint256,string,uint256,uint256,uint256,string,string) - UPDATED
+        // Tier Image Functions - NEW
+        selectors[19] = 0xecfe5a5e; // setTierImages(string[])
+        selectors[20] = 0x819ad6a5; // getTierImageHash(uint256)
+        selectors[21] = 0x263e9970; // getAllTierImageHashes()
+        selectors[22] = 0x8b9f125f; // setTierImageHash(uint256,string)
+        selectors[23] = 0xb3ff9da4; // getTierImageCount()
         return selectors;
     }
 

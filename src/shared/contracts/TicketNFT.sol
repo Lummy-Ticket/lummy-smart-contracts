@@ -26,6 +26,7 @@ interface IEventInfo {
         address organizer
     );
     function getIPFSMetadata() external view returns (string memory);
+    function getTierImageHash(uint256 tierIndex) external view returns (string memory);
 }
 
 /**
@@ -456,28 +457,48 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
     }
 
     /**
-     * @dev Generates image URL untuk NFT (menggunakan event image dari IPFS)
+     * @dev Generates image URL untuk NFT (menggunakan tier-specific image dari contract storage)
      */
     function _generateImageURL(Structs.TicketMetadata memory metadata) internal view returns (string memory) {
-        // Try to get IPFS hash dari event contract
+        // Extract tier index from token ID using Algorithm 1 format: 1EEETTTSSSSS
+        uint256 tierIndex = _extractTierIndexFromTokenId(metadata.tierId);
+        
+        // Try to get tier-specific image hash from event contract
+        try IEventInfo(eventContract).getTierImageHash(tierIndex) returns (string memory tierImageHash) {
+            if (bytes(tierImageHash).length > 0) {
+                // Return tier-specific IPFS URL
+                return string(abi.encodePacked("https://gateway.pinata.cloud/ipfs/", tierImageHash));
+            }
+        } catch {
+            // If failed to get tier image, try fallback to JSON metadata
+        }
+        
+        // Fallback 1: Try to get general IPFS hash from event contract
         try IEventInfo(eventContract).getIPFSMetadata() returns (string memory ipfsHash) {
             if (bytes(ipfsHash).length > 0) {
-                // Return IPFS URL
+                // Return general IPFS URL (JSON metadata)
                 return string(abi.encodePacked("https://gateway.pinata.cloud/ipfs/", ipfsHash));
             }
         } catch {
-            // If failed to get from contract, use placeholder
+            // If all contract calls fail, use placeholder
         }
         
-        // Fallback: placeholder image dengan unique identifier
-        return string(abi.encodePacked(
-            "https://api.lummy.io/nft/placeholder/",
-            metadata.eventId.toString(),
-            "/",
-            metadata.tierId.toString(),
-            "/",
-            metadata.status
-        ));
+        // Fallback 2: Default placeholder image
+        return "https://images.unsplash.com/photo-1459865264687-595d652de67e";
+    }
+
+    /**
+     * @dev Extracts tier index from token ID using Algorithm 1 format
+     * Token ID format: 1EEETTTSSSSS (Algorithm=1, Event=3digits, Tier=3digits, Sequential=5digits)
+     * @param tierId Token ID to extract tier from
+     * @return Tier index (0-based)
+     */
+    function _extractTierIndexFromTokenId(uint256 tierId) internal pure returns (uint256) {
+        // Extract tier code from position 4-6 (3 digits) and convert to 0-based index
+        uint256 tierCode = (tierId / 100000) % 1000;
+        
+        // Convert from 1-based tier code to 0-based tier index
+        return tierCode > 0 ? tierCode - 1 : 0;
     }
 
     /**
