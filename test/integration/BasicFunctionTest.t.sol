@@ -145,8 +145,8 @@ contract BasicFunctionTest is Test {
             // Extract components
             uint256 algorithm = tokenId / 1e9; // Should be 1
             uint256 eventId = (tokenId % 1e9) / 1e6;
-            uint256 tierCode = (tokenId % 1e6) / 1e5;
-            uint256 serial = tokenId % 1e5;
+            uint256 tierCode = (tokenId % 1e6) / 1e4;
+            uint256 serial = tokenId % 1e4;
             
             console.log("Token ID:", tokenId);
             console.log("  Algorithm:", algorithm);

@@ -48,7 +48,7 @@ contract TestTierImages is Script {
         console.log("\n=== Testing Tier Extraction ===");
         
         // Extract tier index from user's token ID
-        uint256 tierCode = (USER_TOKEN_ID / 100000) % 1000;
+        uint256 tierCode = (USER_TOKEN_ID / 10000) % 10;
         uint256 tierIndex = tierCode > 0 ? tierCode - 1 : 0;
         
         console.log("Token ID:", USER_TOKEN_ID);

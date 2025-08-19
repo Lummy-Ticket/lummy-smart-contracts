@@ -72,6 +72,9 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
         s.category = _category;
         s.eventCreatedAt = block.timestamp;
         
+        // Set default eventId to 1 for Algorithm 1 token generation
+        s.eventId = 1;
+        
         // Set organizer with maximum privileges
         s.staffRoles[_organizer] = LibAppStorage.StaffRole.MANAGER;
         s.staffWhitelist[_organizer] = true;
@@ -366,11 +369,17 @@ contract EventCoreFacet is ReentrancyGuard, ERC2771Context {
     }
 
     /// @notice Gets tier-specific NFT background image hash
-    /// @param tierIndex Index of the tier (0-based)
+    /// @param tierIndex Index of the tier (1-based, as used in token IDs)
     /// @return IPFS hash of the tier background image
     function getTierImageHash(uint256 tierIndex) external view returns (string memory) {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-        return s.tierImageHashes[tierIndex];
+        require(tierIndex >= 1 && tierIndex <= 9, "Tier index must be 1-9");
+        
+        // Convert 1-based call to 0-based storage access
+        uint256 storageIndex = tierIndex - 1;
+        require(storageIndex < s.tierImageCount, "Tier index out of bounds");
+        
+        return s.tierImageHashes[storageIndex];
     }
 
     /// @notice Gets all tier image hashes for the event

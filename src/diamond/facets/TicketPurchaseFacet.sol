@@ -258,14 +258,14 @@ contract TicketPurchaseFacet is ReentrancyGuard, ERC2771Context {
         uint256 tierCode,
         uint256 sequential
     ) internal pure returns (uint256) {
-        require(_eventId <= 999, "Event ID too large");
+        require(_eventId >= 1 && _eventId <= 999, "Event ID must be 1-999");
         require(tierCode <= 9, "Tier code too large");
         require(sequential <= 99999, "Sequential number too large");
         
-        // Convert tier 0 to tier 1 for token ID format
+        // Convert tier 0 to tier 1 for token ID format (1-based indexing)
         uint256 actualTierCode = tierCode + 1;
         
-        return (1 * 1e9) + (_eventId * 1e6) + (actualTierCode * 1e5) + sequential;
+        return (1 * 1e9) + (_eventId * 1e6) + (actualTierCode * 1e4) + sequential;
     }
 
     /// @notice Checks if a token exists (Algorithm 1 only)

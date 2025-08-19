@@ -205,7 +205,7 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
     
     /**
      * @notice Generates deterministic token ID for Algorithm 1
-     * @param _eventId Event identifier (0-999)
+     * @param _eventId Event identifier (1-999)
      * @param tierCode Tier identifier (0-9) 
      * @param sequential Sequential number within tier (1-99999)
      * @return uint256 Generated token ID
@@ -215,14 +215,14 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
         uint256 tierCode,
         uint256 sequential
     ) internal pure returns (uint256) {
-        require(_eventId <= 999, "Event ID must be 3 digits max");
+        require(_eventId >= 1 && _eventId <= 999, "Event ID must be 1-999");
         require(tierCode <= 9, "Tier code must be 0-9");
         require(sequential <= 99999, "Sequential must be 5 digits max");
         
         // Convert tier 0 to tier 1 for token ID format (tiers 1-10)
         uint256 actualTierCode = tierCode + 1;
         
-        return (1 * 1e9) + (_eventId * 1e6) + (actualTierCode * 1e5) + sequential;
+        return (1 * 1e9) + (_eventId * 1e6) + (actualTierCode * 1e4) + sequential;
     }
     
     /**
@@ -437,7 +437,7 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
      */
     function _generateBase64JSON(uint256 tokenId, Structs.TicketMetadata memory metadata) internal view returns (string memory) {
         // Generate image URL dari event IPFS hash (atau default)
-        string memory imageUrl = _generateImageURL(metadata);
+        string memory imageUrl = _generateImageURL(tokenId, metadata);
         
         // Generate OpenSea traits
         string memory traits = _generateTraitsArray(metadata);
@@ -459,9 +459,9 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
     /**
      * @dev Generates image URL untuk NFT (menggunakan tier-specific image dari contract storage)
      */
-    function _generateImageURL(Structs.TicketMetadata memory metadata) internal view returns (string memory) {
-        // Extract tier index from token ID using Algorithm 1 format: 1EEETTTSSSSS
-        uint256 tierIndex = _extractTierIndexFromTokenId(metadata.tierId);
+    function _generateImageURL(uint256 tokenId, Structs.TicketMetadata memory metadata) internal view returns (string memory) {
+        // Extract tier index from token ID using Algorithm 1 format: 1EEETSSSSS
+        uint256 tierIndex = _extractTierIndexFromTokenId(tokenId);
         
         // Try to get tier-specific image hash from event contract
         try IEventInfo(eventContract).getTierImageHash(tierIndex) returns (string memory tierImageHash) {
@@ -489,16 +489,16 @@ contract TicketNFT is ITicketNFT, ERC721Enumerable, ERC2771Context, ReentrancyGu
 
     /**
      * @dev Extracts tier index from token ID using Algorithm 1 format
-     * Token ID format: 1EEETTTSSSSS (Algorithm=1, Event=3digits, Tier=3digits, Sequential=5digits)
-     * @param tierId Token ID to extract tier from
-     * @return Tier index (0-based)
+     * Token ID format: 1EEETSSSSS (Algorithm=1, Event=3digits, Tier=1digit, Sequential=5digits)
+     * @param tokenId Token ID to extract tier from
+     * @return Tier index (1-based for contract storage)
      */
-    function _extractTierIndexFromTokenId(uint256 tierId) internal pure returns (uint256) {
-        // Extract tier code from position 4-6 (3 digits) and convert to 0-based index
-        uint256 tierCode = (tierId / 100000) % 1000;
+    function _extractTierIndexFromTokenId(uint256 tokenId) internal pure returns (uint256) {
+        // Extract tier code from position 4 (1 digit)
+        uint256 tierCode = (tokenId / 10000) % 10;
         
-        // Convert from 1-based tier code to 0-based tier index
-        return tierCode > 0 ? tierCode - 1 : 0;
+        // Return tier code as-is (1-based for contract getTierImageHash)
+        return tierCode;
     }
 
     /**

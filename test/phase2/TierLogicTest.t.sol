@@ -37,7 +37,7 @@ contract TierLogicTest is Test {
         
         for (uint256 i = 0; i < testTokenIds.length; i++) {
             // Apply tier extraction logic from TicketNFT contract
-            uint256 tierCode = (testTokenIds[i] / 100000) % 1000;
+            uint256 tierCode = (testTokenIds[i] / 10000) % 10;
             uint256 calculatedTierIndex = tierCode > 0 ? tierCode - 1 : 0;
             
             console.log("--- Token Analysis ---");
@@ -91,7 +91,7 @@ contract TierLogicTest is Test {
         uint256 userTokenId = 1000300001;
         
         // Extract tier index
-        uint256 tierCode = (userTokenId / 100000) % 1000;
+        uint256 tierCode = (userTokenId / 10000) % 10;
         uint256 tierIndex = tierCode > 0 ? tierCode - 1 : 0;
         
         console.log("User's Token ID:", userTokenId);

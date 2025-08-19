@@ -642,7 +642,7 @@ contract Event is IEvent, ERC2771Context, ReentrancyGuard, Ownable {
         // Convert tier 0 to tier 1 for token ID format
         uint256 actualTierCode = tierCode + 1;
         
-        return (1 * 1e9) + (_eventId * 1e6) + (actualTierCode * 1e5) + sequential;
+        return (1 * 1e9) + (_eventId * 1e6) + (actualTierCode * 1e4) + sequential;
     }
     
     /**

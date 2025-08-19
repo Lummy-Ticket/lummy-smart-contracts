@@ -6,8 +6,8 @@ import "../../src/diamond/interfaces/IDiamondCut.sol";
 import "../../src/diamond/facets/DiamondCutFacet.sol";
 
 contract AddTierImagesFunctions is Script {
-    address constant DIAMOND_LUMMY = 0x53324e40e7e0977e39a2ea41a5d2e4f60401e5c3;
-    address constant EVENT_CORE_FACET = 0x654b175b69c42c15851d50790e8b4f0d91874abc;
+    address constant DIAMOND_LUMMY = 0x53324E40E7E0977E39a2EA41A5D2E4F60401E5c3;
+    address constant EVENT_CORE_FACET = 0x654b175b69c42c15851D50790E8b4F0D91874abc;
     
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
